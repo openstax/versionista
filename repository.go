@@ -1,6 +1,5 @@
 package main
 
-
 import (
 	"fmt"
 	"regexp"
@@ -18,7 +17,6 @@ type Repository struct {
 	owner string
 	name string
 }
-
 
 func NewRepository(path string, client *github.Client) *Repository {
 	ownerRepo := strings.Split(path, "/")
@@ -43,7 +41,6 @@ func (r *Repository) latestRelease() *semver.Version {
 	return version
 }
 
-
 func (r *Repository) String() string {
 	return fmt.Sprintf("%s/%s", r.owner, r.name)
 }
@@ -60,13 +57,11 @@ func (repo *Repository) getRecentReleases() []*github.RepositoryRelease {
 	return releases
 }
 
-
 func (repo *Repository) deleteRelease(release *github.RepositoryRelease) {
 	ctx := context.Background()
 	_, err := repo.client.Repositories.DeleteRelease(ctx, repo.owner, repo.name, *release.ID)
 	CheckError(err)
 }
-
 
 func (repo *Repository) getChangelog(previousRelease *semver.Version) []ChangeLogEntry {
 	ctx := context.Background()

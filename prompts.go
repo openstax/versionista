@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"bytes"
 	"os/exec"
-	"github.com/google/go-github/v24/github"
+	"io/ioutil"
+	"github.com/spf13/viper"
 	"github.com/Masterminds/semver"
 	"github.com/manifoldco/promptui"
+	"github.com/google/go-github/v24/github"
 )
 
 func promptToDelete(release *github.RepositoryRelease) bool {
@@ -61,8 +62,11 @@ func composeReleaseMessage(cl []ChangeLogEntry ) string {
 		)
 	}
 	f.Close()
-
-	cmd := exec.Command("vim", fpath)
+	var editor = viper.GetString("editor")
+	if editor == "" {
+		editor = "vim"
+	}
+	cmd := exec.Command(editor, fpath)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -74,10 +78,9 @@ func composeReleaseMessage(cl []ChangeLogEntry ) string {
 	err = cmd.Wait()
 	CheckError(err)
 
-	f.Seek(0, 0)
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(f)
-	return buf.String()
+	b, err := ioutil.ReadFile(fpath)
+	CheckError(err)
+	return string(b)
 }
 
 func getVersion(lastVersion *semver.Version) *semver.Version {

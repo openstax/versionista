@@ -5,7 +5,6 @@ import (
 	"strings"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-
 )
 
 func cutRelease(repo *Repository) {
@@ -23,7 +22,7 @@ func cutRelease(repo *Repository) {
 }
 
 func eachRepository(repoSpec string, iterFn func(*Repository)) {
-	client := NewClient(viper.GetString("token"))
+	client := NewClient()
 	ownerRepo := strings.Split(repoSpec, "/")
 	announceAndCall := func(name string) {
 		repo := NewRepository(name, client)
