@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"context"
 	"github.com/Masterminds/semver"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-github/v24/github"
 )
 
@@ -102,6 +101,4 @@ func (repo *Repository) createRelease(version *semver.Version, message string ) 
 			TagName: &tag,
 		})
 	CheckError(err)
-	spew.Dump(release)
-
 }
