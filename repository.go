@@ -97,8 +97,9 @@ func (repo *Repository) createRelease(version *semver.Version, message string ) 
 	release, _, err := repo.client.Repositories.CreateRelease(
 		ctx, repo.owner, repo.name,
 		&github.RepositoryRelease{
-			TagName: &tag,
+			Name: &tag,
 			Body: &message,
+			TagName: &tag,
 		})
 	CheckError(err)
 	spew.Dump(release)
