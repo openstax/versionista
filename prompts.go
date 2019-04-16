@@ -104,10 +104,10 @@ func getVersion(lastVersion *semver.Version) *semver.Version {
 	patch := lastVersion.IncPatch()
 
 	options := []option {
-		{Label: "no, skip release", Version: lastVersion},
-		{Label: "Major", Version: &major},
-		{Label: "Minor", Version: &minor},
+		{Label: "skip release", Version: lastVersion},
 		{Label: "Patch", Version: &patch},
+		{Label: "Minor", Version: &minor},
+		{Label: "Major", Version: &major},
 	}
 
 	prompt := promptui.Select{
