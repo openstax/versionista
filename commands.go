@@ -58,25 +58,28 @@ func configureCliCommands() {
 	}
 	rootCmd.AddCommand(releaseCmd)
 
-	deleteCmd := &cobra.Command{
-		Use:   "delete",
-		Short: "delete [thing]",
-	}
-	rootCmd.AddCommand(deleteCmd)
+	////////////////////////////////
+	// no mass deleting releases  //
+	////////////////////////////////
 
-	deleteCmd.AddCommand(&cobra.Command{
-		Use:   "releases",
-		Short: "release",
-		Args: cobra.MinimumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			eachRepository(args[0], func(repo *Repository)  {
-				for _, release := range repo.getRecentReleases() {
-					if promptToDelete(release) {
-						repo.deleteRelease(release)
-					}
-				}
-			})
-		}})
+	// deleteCmd := &cobra.Command{
+	//	Use:   "delete",
+	//	Short: "delete [thing]",
+	// }
+	// rootCmd.AddCommand(deleteCmd)
+	// deleteCmd.AddCommand(&cobra.Command{
+	//	Use:   "releases",
+	//	Short: "release",
+	//	Args: cobra.MinimumNArgs(1),
+	//	Run: func(cmd *cobra.Command, args []string) {
+	//		eachRepository(args[0], func(repo *Repository)  {
+	//			for _, release := range repo.getRecentReleases() {
+	//				if promptToDelete(release) {
+	//					repo.deleteRelease(release)
+	//				}
+	//			}
+	//		})
+	//	}})
 
 	rootCmd.Execute()
 
