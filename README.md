@@ -5,7 +5,7 @@
 ## Install
 
 ```
-go get github.com/nathanstitt/versionista
+go get github.com/openstax/versionista
 ```
 
 ## Example
@@ -34,3 +34,4 @@ Nathan Stitt
 ## License
 
 MIT.
+=======
