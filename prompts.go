@@ -48,7 +48,7 @@ func announceRepo(repo *Repository) {
 }
 
 func composeReleaseMessage(cl []ChangeLogEntry ) string {
-	fpath := os.TempDir() + "/foo.txt"
+	fpath := os.TempDir() + "/versionista-changelog.txt"
 	f, err := os.Create(fpath)
 	CheckError(err)
 
