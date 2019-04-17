@@ -1,14 +1,20 @@
 # versionista : A simple CLI app to cut releases on github
 
-## Overview [![GoDoc](https://godoc.org/github.com/nathanstitt/versionista?status.svg)](https://godoc.org/github.com/nathanstitt/versionista)
+## [![Build Status](https://travis-ci.org/openstax/versionista.svg?branch=master)](https://travis-ci.org/openstax/versionista)
 
 ![release screenshot](screenshots/release.png?raw=true "Release Screenshot")
 
+
 ## Install
+
+Install [from a relase](https://github.com/openstax/versionista/releases)
+
+or build and install via:
 
 ```
 go get github.com/openstax/versionista
 ```
+
 
 ## Example
 
