@@ -2,6 +2,8 @@
 
 ## Overview [![GoDoc](https://godoc.org/github.com/nathanstitt/versionista?status.svg)](https://godoc.org/github.com/nathanstitt/versionista)
 
+![release screenshot](screenshots/release.png?raw=true "Release Screenshot")
+
 ## Install
 
 ```
