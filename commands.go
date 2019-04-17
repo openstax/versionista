@@ -18,8 +18,8 @@ func cutRelease(repo *Repository) {
 			msg := composeReleaseMessage(changeLog)
 			repo.createRelease(newVersion, msg)
 		}
+		announceRelease(repo, repo.latestRelease());
 	}
-	announceRelease(repo, repo.latestRelease());
 }
 
 func eachRepository(repoSpec string, iterFn func(*Repository)) {
