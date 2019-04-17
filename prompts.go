@@ -47,6 +47,10 @@ func announceRepo(repo *Repository) {
 	)
 }
 
+func announceRelease(repo *Repository, version *semver.Version) {
+	fmt.Printf("🎉 released version v%s 🎉\n", version.String())
+}
+
 func composeReleaseMessage(cl []ChangeLogEntry ) string {
 	fpath := os.TempDir() + "/versionista-changelog.txt"
 	f, err := os.Create(fpath)

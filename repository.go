@@ -93,7 +93,7 @@ func (repo *Repository) getChangelog(previousRelease *semver.Version) []ChangeLo
 func (repo *Repository) createRelease(version *semver.Version, message string ) {
 	ctx := context.Background()
 	tag := fmt.Sprintf("v%s", version.String())
-	release, _, err := repo.client.Repositories.CreateRelease(
+	_, _, err := repo.client.Repositories.CreateRelease(
 		ctx, repo.owner, repo.name,
 		&github.RepositoryRelease{
 			Name: &tag,

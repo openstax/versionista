@@ -19,6 +19,7 @@ func cutRelease(repo *Repository) {
 			repo.createRelease(newVersion, msg)
 		}
 	}
+	announceRelease(repo, repo.latestRelease());
 }
 
 func eachRepository(repoSpec string, iterFn func(*Repository)) {
