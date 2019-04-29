@@ -51,7 +51,7 @@ func announceRelease(repo *Repository, version *semver.Version) {
 	fmt.Printf("🎉 released version v%s 🎉\n", version.String())
 }
 
-func composeReleaseMessage(cl []ChangeLogEntry ) string {
+func composeReleaseMessage(cl []ChangeLogEntry) string {
 	fpath := os.TempDir() + "/versionista-changelog.txt"
 	f, err := os.Create(fpath)
 	CheckError(err)
@@ -87,20 +87,22 @@ func composeReleaseMessage(cl []ChangeLogEntry ) string {
 	return string(b)
 }
 
-func getVersion(lastVersion *semver.Version) *semver.Version {
+func getVersion(lastVersion *semver.Version, cl []ChangeLogEntry) *semver.Version {
 
 	type option struct {
 		Label string
 		Version *semver.Version
 	}
 
-	fmt.Printf("Last version: %s", lastVersion.String())
-
+	fmt.Printf("Last version: %s, %d PR's since then\n", lastVersion.String(), len(cl))
+	for _, c := range cl {
+		fmt.Printf(" - #%d %20s\n", c.Number, c.Message)
+	}
 	templates := &promptui.SelectTemplates{
 		Label:    "{{ . }}?",
 		Active: fmt.Sprintf("%s {{ .Label | cyan | underline }} ({{ .Version | green }})", promptui.Styler(promptui.FGGreen)("⇨")),
 		Inactive: "  {{ .Label | cyan }} ({{ .Version | green }})",
-		Selected: fmt.Sprintf("%s bumping {{ .Label}} to {{ .Version | green | cyan }}", promptui.IconGood),
+		Selected: fmt.Sprintf("%s {{ .Label}} to {{ .Version | green | cyan }}", promptui.IconGood),
 	}
 
 	major := lastVersion.IncMajor()

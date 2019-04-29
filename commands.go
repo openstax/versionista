@@ -13,12 +13,12 @@ func cutRelease(repo *Repository) {
 	if 0 == len(changeLog) {
 		fmt.Printf("  skipping, no PRs found since %s\n", lastRelease.String())
 	} else {
-		newVersion := getVersion(lastRelease)
+		newVersion := getVersion(lastRelease, changeLog)
 		if newVersion != nil {
 			msg := composeReleaseMessage(changeLog)
 			repo.createRelease(newVersion, msg)
+			announceRelease(repo, repo.latestRelease());
 		}
-		announceRelease(repo, repo.latestRelease());
 	}
 }
 
