@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"context"
 	"github.com/Masterminds/semver"
-	"github.com/google/go-github/v24/github"
+	"github.com/google/go-github/v25/github"
 )
 
 

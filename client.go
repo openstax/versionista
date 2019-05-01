@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
-	"github.com/google/go-github/v24/github"
+	"github.com/google/go-github/v25/github"
 )
 
 func NewClient() *github.Client {

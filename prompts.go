@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/Masterminds/semver"
 	"github.com/manifoldco/promptui"
-	"github.com/google/go-github/v24/github"
+	"github.com/google/go-github/v25/github"
 )
 
 func promptToDelete(release *github.RepositoryRelease) bool {

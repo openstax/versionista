@@ -10,7 +10,7 @@ import (
 	"testing"
 	"net/http"
 	"net/http/httptest"
-	"github.com/google/go-github/v24/github"
+	"github.com/google/go-github/v25/github"
 
 )
 
