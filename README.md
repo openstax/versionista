@@ -1,15 +1,18 @@
-# versionista : A simple CLI app to cut releases on github
+# versionista : A simple CLI app to cut releases on GitHub
 
 ## [![Build Status](https://travis-ci.org/openstax/versionista.svg?branch=master)](https://travis-ci.org/openstax/versionista)
 
 ![release screenshot](screenshots/release.png?raw=true "Release Screenshot")
 
-Has a config file with a github access key and repos to check.
- * When it’s ran it checks the latest release on each one,
- * Checks if master differes from the release
+The basic idea is that there's a config file with a GitHub access key and multiple repositories to check.
+
+When it's ran it:
+
+ * Finds the the latest release on each repo
+ * Checks if master differs from the last release
  * If there's additional commits, it offers to bump the version and make a release
- * searches the commits for pull requests and makes a suggested release changelog, opens an editor to edit if needed
- * Makes a release
+ * It searches the commits for pull requests and makes a suggested release changelogm, opens an editor to edit if needed
+ * it then makes a GitHub release
 
 ## Install
 
@@ -26,7 +29,7 @@ go get github.com/openstax/versionista
 add a `~/.versionista.yml` file in your home directory with api token:
 
 ```
-token: <github personal api token>
+token: <git hub personal api token>
 projects:
   <project name>:
     - repo-organization/repo-name
