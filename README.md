@@ -16,7 +16,7 @@ When it's ran it:
 
 ## Install
 
-Install [from a relase](https://github.com/openstax/versionista/releases)
+Install [from a release](https://github.com/openstax/versionista/releases)
 
 or build and install via go get:
 
