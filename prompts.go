@@ -47,6 +47,22 @@ func announceRepo(repo *Repository) {
 	)
 }
 
+func announceVersions(project string, releases []*Release) {
+	fmt.Println(
+		promptui.Styler(promptui.FGUnderline)(
+			fmt.Sprintf("🍀 %s versions are:", project),
+		),
+	)
+	fmt.Println("```")
+	for _, release := range releases {
+		fmt.Printf("%-20s%s\n",
+			release.repository.name,
+			release.version.String(),
+		)
+	}
+	fmt.Println("```")
+}
+
 func announceRelease(repo *Repository, version *semver.Version) {
 	fmt.Printf("🎉 released version v%s 🎉\n", version.String())
 }
