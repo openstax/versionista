@@ -7,20 +7,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-func cutRelease(repo *Repository) {
-	lastRelease := repo.latestRelease()
-	changeLog := repo.getChangelog(lastRelease)
-	if 0 == len(changeLog) {
-		fmt.Printf("  skipping, no PRs found since %s\n", lastRelease.String())
-	} else {
-		newVersion := getVersion(lastRelease, changeLog)
-		if newVersion != nil {
-			msg := composeReleaseMessage(changeLog)
-			repo.createRelease(newVersion, msg)
-			announceRelease(repo, repo.latestRelease());
-		}
-	}
-}
 
 func eachRepository(repoSpec string, iterFn func(*Repository)) {
 	client := NewClient()
@@ -42,6 +28,14 @@ func eachRepository(repoSpec string, iterFn func(*Repository)) {
 	}
 }
 
+func releaseSpecifiedProject(cmd *cobra.Command, args []string) {
+	var releases []*Release
+	eachRepository(args[0], func(repo *Repository) {
+		releases = append(releases, cutRelease(repo))
+	})
+	announceVersions(args[0], releases)
+}
+
 func configureCliCommands() {
 	var rootCmd = &cobra.Command{
 		Short: "versionista",
@@ -51,11 +45,7 @@ func configureCliCommands() {
 		Use:   "release",
 		Short: "release project(s)",
 		Args: cobra.MinimumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			eachRepository(args[0], func(repo *Repository) {
-				cutRelease(repo)
-			})
-		},
+		Run: releaseSpecifiedProject,
 	}
 	rootCmd.AddCommand(releaseCmd)
 
