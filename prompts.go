@@ -60,6 +60,20 @@ func announceVersions(project string, releases []*Release) {
 			release.version.String(),
 		)
 	}
+	aliases := viper.GetStringMapString(fmt.Sprintf("aliases.%s", project))
+	for alias, project := range aliases {
+		for _, release := range releases {
+			if release.repository.String() == project {
+				fmt.Printf("%-20s%s\n",
+					alias,
+					release.version.String(),
+				)
+				break;
+			}
+		}
+
+
+	}
 	fmt.Println("```")
 }
 
