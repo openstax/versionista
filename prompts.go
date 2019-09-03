@@ -47,6 +47,8 @@ func announceRepo(repo *Repository) {
 	)
 }
 
+const version_format = "%-24s%10s\n"
+
 func announceVersions(project string, releases []*Release) {
 	fmt.Println(
 		promptui.Styler(promptui.FGUnderline)(
@@ -55,18 +57,18 @@ func announceVersions(project string, releases []*Release) {
 	)
 	fmt.Println("```")
 	for _, release := range releases {
-		fmt.Printf("%-20s%s\n",
+		fmt.Printf(version_format,
 			release.repository.name,
-			release.version.String(),
+			fmt.Sprintf("v%s", release.version.String()),
 		)
 	}
 	aliases := viper.GetStringMapString(fmt.Sprintf("aliases.%s", project))
 	for alias, project := range aliases {
 		for _, release := range releases {
 			if release.repository.String() == project {
-				fmt.Printf("%-20s%s\n",
+				fmt.Printf(version_format,
 					alias,
-					release.version.String(),
+					fmt.Sprintf("v%s", release.version.String()),
 				)
 				break;
 			}
