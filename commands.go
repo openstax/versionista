@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"strings"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -10,22 +11,41 @@ import (
 
 func eachRepository(repoSpec string, iterFn func(*Repository)) {
 	client := NewClient()
+	wg := new(sync.WaitGroup)
 	ownerRepo := strings.Split(repoSpec, "/")
-	announceAndCall := func(name string) {
-		repo := NewRepository(name, client)
-		announceRepo(repo);
-		iterFn(repo)
-	}
+
+	repos := []*Repository{}
+
 	if len(ownerRepo) == 1 {
 		projectNames := viper.GetStringSlice(
 			fmt.Sprintf("projects.%s", repoSpec),
 		)
 		for _, name := range(projectNames) {
-			announceAndCall(name)
+			repos = append(repos, NewRepository(name, client))
 		}
 	} else {
-		announceAndCall(repoSpec)
+		repos = append(repos, NewRepository(repoSpec, client))
 	}
+
+	announceFetching()
+
+	fetchLatest := func(repo *Repository) {
+		defer wg.Done()
+		repo.fetch()
+	}
+
+	for _, repo := range(repos) {
+		wg.Add(1)
+		go fetchLatest(repo)
+	}
+	wg.Wait()
+
+	for _, repo := range(repos) {
+		announceRepo(repo);
+		iterFn(repo)
+	}
+
+
 }
 
 func releaseSpecifiedProject(cmd *cobra.Command, args []string) {

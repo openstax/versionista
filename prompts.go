@@ -47,6 +47,12 @@ func announceRepo(repo *Repository) {
 	)
 }
 
+func announceFetching() {
+	fmt.Println(
+		promptui.Styler(promptui.FGGreen)("Fetching repo info…"),
+	)
+}
+
 const version_format = "%-24s%10s\n"
 
 func announceVersions(project string, releases []*Release) {
