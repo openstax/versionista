@@ -6,6 +6,7 @@ require (
 	github.com/Masterminds/semver v1.4.2
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/google/go-github/v25 v25.0.2
+	github.com/google/go-github/v28 v28.0.1
 	github.com/hashicorp/go-version v1.1.0
 	github.com/manifoldco/promptui v0.3.2
 	github.com/nbio/st v0.0.0-20140626010706-e9e8d9816f32 // indirect

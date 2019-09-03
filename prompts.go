@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/Masterminds/semver"
 	"github.com/manifoldco/promptui"
-	"github.com/google/go-github/v25/github"
+	"github.com/google/go-github/v28/github"
 )
 
 func promptToDelete(release *github.RepositoryRelease) bool {
@@ -44,6 +44,12 @@ func promptToDelete(release *github.RepositoryRelease) bool {
 func announceRepo(repo *Repository) {
 	fmt.Println(
 		promptui.Styler(promptui.BGBlue)(repo.String()),
+	)
+}
+
+func announceFetching() {
+	fmt.Println(
+		promptui.Styler(promptui.FGGreen)("Fetching repo info…"),
 	)
 }
 
