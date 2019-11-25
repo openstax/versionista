@@ -41,7 +41,6 @@ func eachRepository(repoSpec string, iterFn func(*Repository)) {
 	wg.Wait()
 
 	for _, repo := range(repos) {
-		announceRepo(repo);
 		iterFn(repo)
 	}
 
@@ -51,7 +50,19 @@ func eachRepository(repoSpec string, iterFn func(*Repository)) {
 func releaseSpecifiedProject(cmd *cobra.Command, args []string) {
 	var releases []*Release
 	eachRepository(args[0], func(repo *Repository) {
-		releases = append(releases, cutRelease(repo))
+		announceRepo(repo);
+		releases = append(releases, newRelease(repo))
+	})
+	announceVersions(args[0], releases)
+}
+
+func reviewSpecifiedProject(cmd *cobra.Command, args []string) {
+	var releases []*Release
+	eachRepository(args[0], func(repo *Repository) {
+		releases = append(releases, &Release{
+			repository: repo,
+			version: repo.latestRelease,
+		})
 	})
 	announceVersions(args[0], releases)
 }
@@ -61,13 +72,19 @@ func configureCliCommands() {
 		Short: "versionista",
 	}
 
-	releaseCmd := &cobra.Command{
+	rootCmd.AddCommand(&cobra.Command{
 		Use:   "release",
 		Short: "release project(s)",
 		Args: cobra.MinimumNArgs(1),
 		Run: releaseSpecifiedProject,
-	}
-	rootCmd.AddCommand(releaseCmd)
+	})
+
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   "review",
+		Short: "list latest version of project(s)",
+		Args: cobra.MinimumNArgs(1),
+		Run: reviewSpecifiedProject,
+	})
 
 	////////////////////////////////
 	// no mass deleting releases  //

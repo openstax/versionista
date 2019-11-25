@@ -12,7 +12,7 @@ type Release struct {
 }
 
 
-func cutRelease(repo *Repository) *Release {
+func newRelease(repo *Repository) *Release {
 
 	release := &Release{
 		repository: repo,
