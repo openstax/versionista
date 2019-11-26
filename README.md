@@ -36,10 +36,12 @@ projects:
 
 ```
 
-to release all repos for a project run:
-`versionista release <project name>`
+## Commands
 
-Aternatively you can release any repo even if it's not listed by using the `organization/name` format like:
+* **release** all repos for a project: `versionista release <project name>`
+* **review**  display latest versions of all repos in project: `versionista review <project name>`
+
+Aternatively you can release or review any repository even if it's not listed by using the `organization/name` format like:
 `versionista release organization/name`
 
 
