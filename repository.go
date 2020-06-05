@@ -104,6 +104,7 @@ func (repo *Repository) createRelease(version *semver.Version, message string ) 
 			Name: &tag,
 			Body: &message,
 			TagName: &tag,
+			TargetCommitish: &repo.branch,
 		})
 	CheckError(err)
 }
