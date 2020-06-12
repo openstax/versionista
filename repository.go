@@ -6,6 +6,7 @@ import (
 	"strings"
 	"strconv"
 	"context"
+	"github.com/spf13/viper"
 	"github.com/Masterminds/semver"
 	"github.com/google/go-github/v28/github"
 )
@@ -21,16 +22,23 @@ type Repository struct {
 	client *github.Client
 	owner string
 	name string
+	branch string
 	latestRelease *semver.Version
 	changeLog []ChangeLogEntry
 }
 
 func NewRepository(path string, client *github.Client) *Repository {
 	ownerRepo := strings.Split(path, "/")
+	var branch string
+	branch = viper.GetString(fmt.Sprintf("branches.%s", path))
+	if branch == "" {
+		branch = "master"
+	}
 	return &Repository{
 		client: client,
 		owner: ownerRepo[0],
 		name: ownerRepo[1],
+		branch: branch,
 	};
 }
 
@@ -64,21 +72,14 @@ func (r *Repository) fetch() {
 
 	r.latestRelease = version
 
-
-
-// func (repo *Repository) getChangelog(previousRelease *semver.Version) []ChangeLogEntry {
-//	ctx := context.Background()
-
 	cmp, _, err := r.client.Repositories.CompareCommits(
 		ctx, r.owner, r.name,
 		fmt.Sprintf("v%s", version),
-		"master",
+		r.branch,
 	)
 	CheckError(err)
 
 	prNumR := regexp.MustCompile(`Merge pull request #(\d+) from (?:\S+)(?:\s+)(.*)`)
-
-	//var log []ChangeLogEntry
 
 	for _, c := range cmp.Commits {
 		msg := *c.GetCommit().Message
@@ -103,6 +104,7 @@ func (repo *Repository) createRelease(version *semver.Version, message string ) 
 			Name: &tag,
 			Body: &message,
 			TagName: &tag,
+			TargetCommitish: &repo.branch,
 		})
 	CheckError(err)
 }

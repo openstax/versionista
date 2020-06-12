@@ -34,6 +34,13 @@ projects:
   <project name>:
     - repo-organization/repo-name
 
+branches:
+  repo-organization/repo-name: feature-branch
+
+aliases:
+  openstax:
+    exercises-js: openstax/tutor-js
+
 ```
 
 ## Commands
