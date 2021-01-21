@@ -32,7 +32,7 @@ func NewRepository(path string, client *github.Client) *Repository {
 	var branch string
 	branch = viper.GetString(fmt.Sprintf("branches.%s", path))
 	if branch == "" {
-		branch = "master"
+		branch = "main"
 	}
 	return &Repository{
 		client: client,
@@ -68,7 +68,10 @@ func (r *Repository) fetch() {
 	CheckError(err)
 
 	version, err :=  semver.NewVersion(*release.TagName)
-	CheckError(err)
+	if err != nil {
+		fmt.Printf("Failed to parse %s version \"%s\"\n", r.name, *release.TagName)
+		CheckError(err)
+	}
 
 	r.latestRelease = version
 
