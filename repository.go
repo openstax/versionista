@@ -59,6 +59,10 @@ func (repo *Repository) deleteRelease(release *github.RepositoryRelease) {
 	_, err := repo.client.Repositories.DeleteRelease(ctx, repo.owner, repo.name, *release.ID)
 	CheckError(err)
 }
+
+var squashLine = regexp.MustCompile(`(?:\S+) \(\#(\d+)\)`)
+var mergeLine = regexp.MustCompile(`Merge pull request #(\d+) from (?:\S+)(?:\s+)(.*)`)
+
 func (r *Repository) fetch() {
 	ctx := context.Background()
 
@@ -82,20 +86,26 @@ func (r *Repository) fetch() {
 	)
 	CheckError(err)
 
-	prNumR := regexp.MustCompile(`Merge pull request #(\d+) from (?:\S+)(?:\s+)(.*)`)
-
 	for _, c := range cmp.Commits {
 		msg := *c.GetCommit().Message
-		prMatch := prNumR.FindStringSubmatch(msg)
-		if len(prMatch) > 0 {
-			num, err := strconv.Atoi(prMatch[1])
+		squashMatch := squashLine.FindStringSubmatch(msg)
+		if len(squashMatch) > 0 {
+			num, err := strconv.Atoi(squashMatch[2])
 			CheckError(err)
 			r.changeLog = append(r.changeLog, ChangeLogEntry{
-				Number: num, Message: prMatch[2],
+				Number: num, Message: squashMatch[1],
 			})
+		} else {
+			mergeMatch := mergeLine.FindStringSubmatch(msg)
+			if len(mergeMatch) > 0 {
+				num, err := strconv.Atoi(squashMatch[1])
+				CheckError(err)
+				r.changeLog = append(r.changeLog, ChangeLogEntry{
+					Number: num, Message: squashMatch[2],
+				})
+			}
 		}
 	}
-//	return log
 }
 
 func (repo *Repository) createRelease(version *semver.Version, message string ) {
