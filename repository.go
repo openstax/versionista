@@ -60,7 +60,7 @@ func (repo *Repository) deleteRelease(release *github.RepositoryRelease) {
 	CheckError(err)
 }
 
-var squashLine = regexp.MustCompile(`(?:\S+) \(\#(\d+)\)`)
+var squashLine = regexp.MustCompile(`\s*(.*)\s+\(\#(\d+)\)`)
 var mergeLine = regexp.MustCompile(`Merge pull request #(\d+) from (?:\S+)(?:\s+)(.*)`)
 
 func (r *Repository) fetch() {
