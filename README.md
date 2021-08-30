@@ -18,11 +18,7 @@ When it's ran it:
 
 Install [from a release](https://github.com/openstax/versionista/releases)
 
-or build and install via go get:
-
-```
-go get github.com/openstax/versionista
-```
+or build manually by checking out code and running `go build` in the source directory
 
 ## Example
 
@@ -38,8 +34,8 @@ branches:
   repo-organization/repo-name: feature-branch
 
 aliases:
-  openstax:
-    exercises-js: openstax/tutor-js
+  <project name>:
+    repo-organization/repo-name: MyCustomName
 
 ```
 
