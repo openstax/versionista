@@ -98,10 +98,10 @@ func (r *Repository) fetch() {
 		} else {
 			mergeMatch := mergeLine.FindStringSubmatch(msg)
 			if len(mergeMatch) > 0 {
-				num, err := strconv.Atoi(squashMatch[1])
+				num, err := strconv.Atoi(mergeMatch[1])
 				CheckError(err)
 				r.changeLog = append(r.changeLog, ChangeLogEntry{
-					Number: num, Message: squashMatch[2],
+					Number: num, Message: mergeMatch[2],
 				})
 			}
 		}
