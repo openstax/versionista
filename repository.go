@@ -61,8 +61,9 @@ func (repo *Repository) deleteRelease(release *github.RepositoryRelease) {
 }
 
 var squashLine = regexp.MustCompile(`\s*(.*)\s+\(\#(\d+)\)`)
-var mergeLine = regexp.MustCompile(`Merge pull request #(\d+) from (?:\S+)(?:\s+)(.*)`)
-
+// match <number>, then non-greedily match any non-space, an optional space, then capture anything else
+var mergeLine = regexp.MustCompile(`Merge pull request #(\d+) from (?:\S+)(?:\s*)(.*)`)
+	
 func (r *Repository) fetch() {
 	ctx := context.Background()
 
