@@ -2,3 +2,7 @@ versionista
 versionista.yaml
 dist
 .DS_Store
+
+dist/
+
+dist/
