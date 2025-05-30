@@ -5,18 +5,16 @@ import (
 	"github.com/Masterminds/semver"
 )
 
-
 type Release struct {
 	repository *Repository
-	version *semver.Version
+	version    *semver.Version
 }
-
 
 func newRelease(repo *Repository) *Release {
 
 	release := &Release{
 		repository: repo,
-		version: repo.latestRelease,
+		version:    repo.latestRelease,
 	}
 
 	if 0 == len(repo.changeLog) {
@@ -25,9 +23,10 @@ func newRelease(repo *Repository) *Release {
 		newVersion := getVersion(release.version, repo.changeLog)
 		if newVersion != nil {
 			msg := composeReleaseMessage(repo.changeLog)
+			fmt.Printf("  creating release %s\n%s", newVersion.String(), msg)
 			repo.createRelease(newVersion, msg)
 			release.version = newVersion
-			announceRelease(repo, repo.latestRelease);
+			announceRelease(repo, repo.latestRelease)
 		}
 	}
 	return release

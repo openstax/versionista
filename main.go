@@ -1,9 +1,9 @@
 package main
 
 import (
-	"os"
 	"fmt"
 	"github.com/spf13/viper"
+	"os"
 )
 
 func CheckError(err error) {
@@ -14,7 +14,7 @@ func CheckError(err error) {
 }
 
 func Warn(format string, args ...interface{}) {
-	fmt.Fprintln(os.Stderr, fmt.Sprintf("[ERROR]: " + format, args...))
+	fmt.Fprintln(os.Stderr, fmt.Sprintf("[ERROR]: "+format, args...))
 }
 
 func main() {

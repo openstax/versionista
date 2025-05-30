@@ -2,12 +2,11 @@ package main
 
 import (
 	"fmt"
-	"sync"
-	"strings"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"strings"
+	"sync"
 )
-
 
 func eachRepository(repoSpec string, iterFn func(*Repository)) {
 	client := NewClient()
@@ -20,7 +19,7 @@ func eachRepository(repoSpec string, iterFn func(*Repository)) {
 		projectNames := viper.GetStringSlice(
 			fmt.Sprintf("projects.%s", repoSpec),
 		)
-		for _, name := range(projectNames) {
+		for _, name := range projectNames {
 			repos = append(repos, NewRepository(name, client))
 		}
 	} else {
@@ -34,23 +33,22 @@ func eachRepository(repoSpec string, iterFn func(*Repository)) {
 		repo.fetch()
 	}
 
-	for _, repo := range(repos) {
+	for _, repo := range repos {
 		wg.Add(1)
 		go fetchLatest(repo)
 	}
 	wg.Wait()
 
-	for _, repo := range(repos) {
+	for _, repo := range repos {
 		iterFn(repo)
 	}
-
 
 }
 
 func releaseSpecifiedProject(cmd *cobra.Command, args []string) {
 	var releases []*Release
 	eachRepository(args[0], func(repo *Repository) {
-		announceRepo(repo);
+		announceRepo(repo)
 		releases = append(releases, newRelease(repo))
 	})
 	announceVersions(args[0], releases)
@@ -61,7 +59,7 @@ func reviewSpecifiedProject(cmd *cobra.Command, args []string) {
 	eachRepository(args[0], func(repo *Repository) {
 		releases = append(releases, &Release{
 			repository: repo,
-			version: repo.latestRelease,
+			version:    repo.latestRelease,
 		})
 	})
 	announceVersions(args[0], releases)
@@ -75,15 +73,15 @@ func configureCliCommands() {
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "release",
 		Short: "release project(s)",
-		Args: cobra.MinimumNArgs(1),
-		Run: releaseSpecifiedProject,
+		Args:  cobra.MinimumNArgs(1),
+		Run:   releaseSpecifiedProject,
 	})
 
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "review",
 		Short: "list latest version of project(s)",
-		Args: cobra.MinimumNArgs(1),
-		Run: reviewSpecifiedProject,
+		Args:  cobra.MinimumNArgs(1),
+		Run:   reviewSpecifiedProject,
 	})
 
 	////////////////////////////////

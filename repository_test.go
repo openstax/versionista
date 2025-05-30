@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"testing"
 	"net/http"
+	"testing"
 )
 
 func TestGetLatestRelease(t *testing.T) {
@@ -16,7 +16,7 @@ func TestGetLatestRelease(t *testing.T) {
 		testMethod(t, r, "GET")
 		fmt.Fprintf(w, `{"id":1, "tag_name": "%s"}`, specifiedVersion)
 	})
-	mux.HandleFunc("/repos/foo/bar/compare/v1.1.42...master",func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/repos/foo/bar/compare/v1.1.42...master", func(w http.ResponseWriter, r *http.Request) {
 		testMethod(t, r, "GET")
 	})
 	repo.fetch()

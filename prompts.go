@@ -1,16 +1,15 @@
 package main
 
-
 import (
 	"fmt"
+	"github.com/Masterminds/semver"
+	"github.com/google/go-github/v28/github"
+	"github.com/manifoldco/promptui"
+	"github.com/spf13/viper"
 	"log"
 	"os"
 	"os/exec"
-	"io/ioutil"
-	"github.com/spf13/viper"
-	"github.com/Masterminds/semver"
-	"github.com/manifoldco/promptui"
-	"github.com/google/go-github/v28/github"
+	"strings"
 )
 
 func promptToDelete(release *github.RepositoryRelease) bool {
@@ -85,18 +84,26 @@ func announceRelease(repo *Repository, version *semver.Version) {
 }
 
 func composeReleaseMessage(cl []ChangeLogEntry) string {
+	jiraSlug := viper.GetString("jira_slug")
 	fpath := os.TempDir() + "/versionista-changelog.txt"
 	f, err := os.Create(fpath)
 	CheckError(err)
 
-	f.WriteString("### Includes:\n")
+	f.WriteString("| PR | Author | Title | Merged Date | Tickets |\n")
+	f.WriteString("|----|--------|-------|-------------|---------|\n")
 	for _, c := range cl {
-		f.WriteString(
-			fmt.Sprintf(" - #%d %s\n",
-				c.Number,
-				c.Message,
-			),
-		)
+		var tickets []string
+		for _, ticket := range c.Tickets {
+			tickets = append(tickets, fmt.Sprintf("[%s](https://%s.atlassian.net/browse/%s)", ticket, jiraSlug, ticket))
+		}
+		f.WriteString(fmt.Sprintf(
+			"| #%d | %s | %s | %s | %s |\n",
+			c.Number,
+			mdQuote(c.Author),
+			mdQuote(c.Title),
+			c.Date,
+			strings.Join(tickets, "  "),
+		))
 	}
 	f.Close()
 	var editor = viper.GetString("editor")
@@ -115,7 +122,7 @@ func composeReleaseMessage(cl []ChangeLogEntry) string {
 	err = cmd.Wait()
 	CheckError(err)
 
-	b, err := ioutil.ReadFile(fpath)
+	b, err := os.ReadFile(fpath)
 	CheckError(err)
 	return string(b)
 }
@@ -123,17 +130,17 @@ func composeReleaseMessage(cl []ChangeLogEntry) string {
 func getVersion(lastVersion *semver.Version, cl []ChangeLogEntry) *semver.Version {
 
 	type option struct {
-		Label string
+		Label   string
 		Version *semver.Version
 	}
 
 	fmt.Printf("Last version: %s, %d PR's since then\n", lastVersion.String(), len(cl))
 	for _, c := range cl {
-		fmt.Printf(" - #%d %20s\n", c.Number, c.Message)
+		fmt.Printf(" - #%d %20s\n", c.Number, c.Title)
 	}
 	templates := &promptui.SelectTemplates{
 		Label:    "{{ . }}?",
-		Active: fmt.Sprintf("%s {{ .Label | cyan | underline }} ({{ .Version | green }})", promptui.Styler(promptui.FGGreen)("⇨")),
+		Active:   fmt.Sprintf("%s {{ .Label | cyan | underline }} ({{ .Version | green }})", promptui.Styler(promptui.FGGreen)("⇨")),
 		Inactive: "  {{ .Label | cyan }} ({{ .Version | green }})",
 		Selected: fmt.Sprintf("%s {{ .Label}} to {{ .Version | green | cyan }}", promptui.IconGood),
 	}
@@ -142,7 +149,7 @@ func getVersion(lastVersion *semver.Version, cl []ChangeLogEntry) *semver.Versio
 	minor := lastVersion.IncMinor()
 	patch := lastVersion.IncPatch()
 
-	options := []option {
+	options := []option{
 		{Label: "skip release", Version: lastVersion},
 		{Label: "Patch", Version: &patch},
 		{Label: "Minor", Version: &minor},
@@ -154,7 +161,7 @@ func getVersion(lastVersion *semver.Version, cl []ChangeLogEntry) *semver.Versio
 			"Last version was %s, shall we bump",
 			lastVersion.String(),
 		),
-		Items: options,
+		Items:     options,
 		Templates: templates,
 	}
 	i, _, err := prompt.Run()

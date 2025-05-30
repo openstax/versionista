@@ -4,14 +4,13 @@ package main
 // https://github.com/google/go-github/blob/master/github/github_test.go
 
 import (
-	"os"
 	"fmt"
-	"net/url"
-	"testing"
+	"github.com/google/go-github/v28/github"
 	"net/http"
 	"net/http/httptest"
-	"github.com/google/go-github/v28/github"
-
+	"net/url"
+	"os"
+	"testing"
 )
 
 const (

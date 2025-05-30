@@ -25,10 +25,14 @@ or build manually by checking out code and running `go build` in the source dire
 add a `~/.versionista.yml` file in your home directory with api token:
 
 ```
-token: <git hub personal api token>
+gh_token: <git hub personal api token>
 projects:
   <project name>:
     - repo-organization/repo-name
+
+jira_boards:
+  - otter
+  - shrimp
 
 branches:
   repo-organization/repo-name: feature-branch
