@@ -37,14 +37,17 @@ func NewRepository(path string, client *github.Client) *Repository {
 	if branch == "" {
 		branch = "main"
 	}
-	jiraBoards := viper.GetStringSlice("jira_boards")
-	return &Repository{
+	repo := &Repository{
 		client:        client,
-		ticketMatcher: regexp.MustCompile(fmt.Sprintf(`(?i)\s*(%s)[-\s](\d+)\s*`, strings.Join(jiraBoards, "|"))),
 		owner:         ownerRepo[0],
 		name:          ownerRepo[1],
 		commitSHA:     branch,
 	}
+	jiraBoards := viper.GetStringSlice("jira_boards")
+	if len(jiraBoards) > 0 {
+		repo.ticketMatcher = regexp.MustCompile(fmt.Sprintf(`(?i)[^a-zA-Z0-9]*(%s)[-\s](\d+)[^a-zA-Z0-9]*`, strings.Join(jiraBoards, "|")))
+	}
+	return repo
 }
 
 func (r *Repository) String() string {
@@ -86,9 +89,16 @@ func (r *Repository) parsePR(ctx context.Context, entry *ChangeLogEntry) {
 	}
 
 	if pr.Title != nil && *pr.Title != "" {
-		entry.Tickets = r.appendMatches(entry.Tickets, *pr.Title)
 		entry.Title = *pr.Title
 	}
+	if r.ticketMatcher == nil {
+		return
+	}
+
+	if entry.Title != "" {
+		entry.Tickets = r.appendMatches(entry.Tickets, entry.Title)
+	}
+
 	if pr.Body != nil {
 		entry.Tickets = r.appendMatches(entry.Tickets, *pr.Body)
 	}
