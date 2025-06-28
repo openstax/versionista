@@ -89,8 +89,8 @@ func composeReleaseMessage(cl []ChangeLogEntry) string {
 	f, err := os.Create(fpath)
 	CheckError(err)
 
-	f.WriteString("| PR | Author | Title | Merged Date | Tickets |\n")
-	f.WriteString("|----|--------|-------|-------------|---------|\n")
+	f.WriteString("| PR | Author | Title | Merged Date | Internal Ticket # |\n")
+	f.WriteString("|----|--------|-------|-------------|-------------------|\n")
 	for _, c := range cl {
 		var tickets []string
 		for _, ticket := range c.Tickets {
@@ -176,4 +176,28 @@ func getVersion(lastVersion *semver.Version, cl []ChangeLogEntry) *semver.Versio
 	}
 	return choice.Version
 
+}
+
+func getHotfixInfo(lastVersion *semver.Version) (string, string) {
+	fmt.Printf("Last version: %s\n", lastVersion.String())
+
+	prompt := promptui.Prompt{
+		Label: "Enter the SHA for the hotfix",
+	}
+	sha, err := prompt.Run()
+	if err != nil {
+		fmt.Printf("Prompt failed %v\n", err)
+		return "", ""
+	}
+
+	prompt = promptui.Prompt{
+		Label: "Enter the suffix for the hotfix version",
+	}
+	suffix, err := prompt.Run()
+	if err != nil {
+		fmt.Printf("Prompt failed %v\n", err)
+		return "", ""
+	}
+
+	return sha, suffix
 }

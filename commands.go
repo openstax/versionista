@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -30,7 +31,7 @@ func eachRepository(repoSpec string, iterFn func(*Repository)) {
 
 	fetchLatest := func(repo *Repository) {
 		defer wg.Done()
-		repo.fetch()
+		repo.resolveVersions(context.Background())
 	}
 
 	for _, repo := range repos {
@@ -50,6 +51,15 @@ func releaseSpecifiedProject(cmd *cobra.Command, args []string) {
 	eachRepository(args[0], func(repo *Repository) {
 		announceRepo(repo)
 		releases = append(releases, newRelease(repo))
+	})
+	announceVersions(args[0], releases)
+}
+
+func hotfixSpecifiedProject(cmd *cobra.Command, args []string) {
+	var releases []*Release
+	eachRepository(args[0], func(repo *Repository) {
+		announceRepo(repo)
+		releases = append(releases, newHotfixRelease(repo))
 	})
 	announceVersions(args[0], releases)
 }
@@ -75,6 +85,13 @@ func configureCliCommands() {
 		Short: "release project(s)",
 		Args:  cobra.MinimumNArgs(1),
 		Run:   releaseSpecifiedProject,
+	})
+
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   "hotfix",
+		Short: "hotfix project(s)",
+		Args:  cobra.MinimumNArgs(1),
+		Run:   hotfixSpecifiedProject,
 	})
 
 	rootCmd.AddCommand(&cobra.Command{

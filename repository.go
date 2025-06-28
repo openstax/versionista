@@ -6,6 +6,7 @@ import (
 	"github.com/Masterminds/semver"
 	"github.com/google/go-github/v28/github"
 	"github.com/spf13/viper"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -21,13 +22,14 @@ type ChangeLogEntry struct {
 }
 
 type Repository struct {
-	client        *github.Client
-	owner         string
-	name          string
-	commitSHA     string
-	ticketMatcher *regexp.Regexp
-	latestRelease *semver.Version
-	changeLog     []ChangeLogEntry
+	client              *github.Client
+	owner               string
+	name                string
+	commitSHA           string
+	ticketMatcher       *regexp.Regexp
+	latestRelease       *semver.Version
+	latestStableRelease *semver.Version
+	changeLog           []ChangeLogEntry
 }
 
 func NewRepository(path string, client *github.Client) *Repository {
@@ -133,28 +135,16 @@ func (r *Repository) parsePR(ctx context.Context, entry *ChangeLogEntry) {
 
 }
 
-var squashLine = regexp.MustCompile(`\s*(.*)\s+\(\#(\d+)\)`)
+var squashLine = regexp.MustCompile(`\s*(.*)\s+\(#(\d+)\)`)
 
 // match <number>, then non-greedily match any non-space, an optional space, then capture anything else
 var mergeLine = regexp.MustCompile(`Merge pull request #(\d+) from (?:\S+)(?:\s*)(.*)`)
 
-func (r *Repository) fetch() {
-	ctx := context.Background()
-
-	release, _, err := r.client.Repositories.GetLatestRelease(
-		ctx, r.owner, r.name,
-	)
-	CheckError(err)
-
-	version, err := semver.NewVersion(*release.TagName)
-	CheckError(err)
-
-	r.latestRelease = version
-
+func (r *Repository) fetchChangeLog(ctx context.Context, base string, head string) {
 	cmp, _, err := r.client.Repositories.CompareCommits(
 		ctx, r.owner, r.name,
-		fmt.Sprintf("v%s", version),
-		r.commitSHA,
+		base,
+		head,
 	)
 	CheckError(err)
 
@@ -185,22 +175,66 @@ func (r *Repository) fetch() {
 
 	}
 }
+
+func (r *Repository) resolveVersions(ctx context.Context) {
+	releases, _, err := r.client.Repositories.ListReleases(ctx, r.owner, r.name, nil)
+	CheckError(err)
+
+	if len(releases) == 0 {
+		Warn("No releases found for %s/%s. Please create an initial release.", r.owner, r.name)
+		os.Exit(1)
+	}
+
+	// First release in the list is the latest one.
+	if releases[0].TagName != nil {
+		v, err := semver.NewVersion(*releases[0].TagName)
+		if err == nil {
+			r.latestRelease = v
+		}
+	}
+
+	for _, release := range releases {
+		if release.TagName == nil {
+			continue
+		}
+		v, err := semver.NewVersion(*release.TagName)
+		if err != nil {
+			continue
+		}
+
+		if v.Prerelease() == "" {
+			r.latestStableRelease = v
+			break // Found the latest stable, can stop.
+		}
+	}
+
+	if r.latestRelease == nil {
+		// This would happen if no tags are valid semver.
+		Warn("No valid semver release tags found for %s/%s.", r.owner, r.name)
+		os.Exit(1)
+	}
+
+	if r.latestStableRelease == nil {
+		Warn("No stable (non-prerelease) release found for %s/%s. Please create a stable release first.", r.owner, r.name)
+		os.Exit(1)
+	}
+}
 func (r *Repository) appendChangeLog(ctx context.Context, tag string, body string) {
 	fileContent, _, _, err := r.client.Repositories.GetContents(ctx, r.owner, r.name, "CHANGELOG.md", &github.RepositoryContentGetOptions{
 		Ref: r.commitSHA,
 	})
 	CheckError(err)
-	//currentTime := time.Now().Format(time.DateOnly)
+
 	oldContent, err := fileContent.GetContent()
 	if err != nil {
 		fmt.Println("Error decoding content:", err)
 		return
 	}
 
-	updatedContent := fmt.Sprintf("## [%s - %s](%s)\n\n%s\n\n---\n\n",
+	updatedContent := fmt.Sprintf("## [%s - %s](%s)\n\n%s\n\n---\n\n%s",
 		tag,
 		time.Now().Format(time.DateOnly),
-		fmt.Sprintf("https://github.com/%s/%s/blob/%s", r.owner, r.name, r.commitSHA),
+		fmt.Sprintf("https://github.com/%s/%s/releases/tag/%s", r.owner, r.name, tag),
 		body,
 		oldContent)
 
@@ -229,6 +263,26 @@ func (repo *Repository) createRelease(version *semver.Version, message string) {
 
 	if err != nil {
 		fmt.Println("Error fetching file:", err)
+		return
+	}
+	CheckError(err)
+}
+
+func (repo *Repository) createHotfixRelease(version *semver.Version, sha string, suffix string, message string) {
+	ctx := context.Background()
+	tag := fmt.Sprintf("v%s-%s", version.String(), suffix)
+
+	_, _, err := repo.client.Repositories.CreateRelease(
+		ctx, repo.owner, repo.name,
+		&github.RepositoryRelease{
+			Name:            &tag,
+			Body:            &message,
+			TagName:         &tag,
+			TargetCommitish: &sha,
+		})
+
+	if err != nil {
+		fmt.Println("Error creating hotfix release:", err)
 		return
 	}
 	CheckError(err)
