@@ -185,14 +185,6 @@ func (r *Repository) resolveVersions(ctx context.Context) {
 		os.Exit(1)
 	}
 
-	// First release in the list is the latest one.
-	if releases[0].TagName != nil {
-		v, err := semver.NewVersion(*releases[0].TagName)
-		if err == nil {
-			r.latestRelease = v
-		}
-	}
-
 	for _, release := range releases {
 		if release.TagName == nil {
 			continue
@@ -202,9 +194,16 @@ func (r *Repository) resolveVersions(ctx context.Context) {
 			continue
 		}
 
-		if v.Prerelease() == "" {
+		if r.latestRelease == nil {
+			r.latestRelease = v
+		}
+
+		if r.latestStableRelease == nil && v.Prerelease() == "" {
 			r.latestStableRelease = v
-			break // Found the latest stable, can stop.
+		}
+
+		if r.latestRelease != nil && r.latestStableRelease != nil {
+			break
 		}
 	}
 
@@ -270,7 +269,7 @@ func (repo *Repository) createRelease(version *semver.Version, message string) {
 
 func (repo *Repository) createHotfixRelease(version *semver.Version, sha string, suffix string, message string) {
 	ctx := context.Background()
-	tag := fmt.Sprintf("v%s-%s", version.String(), suffix)
+	tag := fmt.Sprintf("v%s+%s", version.String(), suffix)
 
 	_, _, err := repo.client.Repositories.CreateRelease(
 		ctx, repo.owner, repo.name,
