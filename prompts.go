@@ -12,6 +12,12 @@ import (
 	"strings"
 )
 
+const (
+	ReleaseTypeVersion        = "release"
+	ReleaseTypePostReleaseFix = "post-release"
+	ReleaseTypePreReleaseFix  = "pre-release"
+)
+
 func promptToDelete(release *github.RepositoryRelease) bool {
 	templates := &promptui.PromptTemplates{
 		Invalid: "{{ . }} was not modified or removed",
@@ -127,6 +133,19 @@ func composeReleaseMessage(cl []ChangeLogEntry) string {
 	return string(b)
 }
 
+func getReleaseType() string {
+	prompt := promptui.Select{
+		Label: "Select release type",
+		Items: []string{ReleaseTypeVersion, ReleaseTypePostReleaseFix, ReleaseTypePreReleaseFix},
+	}
+	_, result, err := prompt.Run()
+	if err != nil {
+		fmt.Printf("Prompt failed %v\n", err)
+		return ""
+	}
+	return result
+}
+
 func getVersion(lastVersion *semver.Version, cl []ChangeLogEntry) *semver.Version {
 
 	type option struct {
@@ -178,26 +197,64 @@ func getVersion(lastVersion *semver.Version, cl []ChangeLogEntry) *semver.Versio
 
 }
 
-func getHotfixInfo(lastVersion *semver.Version) (string, string) {
+func getPreReleaseFixInfo(lastVersion *semver.Version) (*semver.Version, string) {
 	fmt.Printf("Last version: %s\n", lastVersion.String())
 
 	prompt := promptui.Prompt{
-		Label: "Enter the SHA for the hotfix",
+		Label: "Enter the SHA for the pre-release",
 	}
 	sha, err := prompt.Run()
 	if err != nil {
 		fmt.Printf("Prompt failed %v\n", err)
-		return "", ""
+		return nil, ""
 	}
 
 	prompt = promptui.Prompt{
-		Label: "Enter the suffix for the hotfix version",
+		Label: "Enter the suffix for the pre-release fix version",
 	}
 	suffix, err := prompt.Run()
 	if err != nil {
 		fmt.Printf("Prompt failed %v\n", err)
-		return "", ""
+		return nil, ""
 	}
 
-	return sha, suffix
+	version, err := lastVersion.SetPrerelease(suffix)
+	if err != nil {
+		fmt.Printf("Failed to set prerelease version: %v\n", err)
+		return nil, ""
+	}
+
+	return &version, sha
 }
+
+func getPostReleaseFixInfo(lastVersion *semver.Version) (*semver.Version, string) {
+	fmt.Printf("Last version: %s\n", lastVersion.String())
+
+	prompt := promptui.Prompt{
+		Label: "Enter the SHA for the post-release",
+	}
+	sha, err := prompt.Run()
+	if err != nil {
+		fmt.Printf("Prompt failed %v\n", err)
+		return nil, ""
+	}
+
+	prompt = promptui.Prompt{
+		Label: "Enter the suffix for the post-release version",
+	}
+	suffix, err := prompt.Run()
+	if err != nil {
+		fmt.Printf("Prompt failed %v\n", err)
+		return nil, ""
+	}
+
+	version, err := lastVersion.SetPrerelease(fmt.Sprintf("%s-%s", lastVersion.Prerelease(), suffix))
+	if err != nil {
+		fmt.Printf("Failed to set prerelease version: %v\n", err)
+		return nil, ""
+	}
+
+	return &version, sha
+}
+
+

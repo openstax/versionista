@@ -33,21 +33,36 @@ func newRelease(repo *Repository) *Release {
 	return release
 }
 
-func newHotfixRelease(repo *Repository) *Release {
+func newPreReleaseFix(repo *Repository) *Release {
 	release := &Release{
 		repository: repo,
 		version:    repo.latestStableRelease,
 	}
 
-	sha, suffix := getHotfixInfo(release.version)
-	if sha != "" && suffix != "" {
+	newVersion, sha := getPreReleaseFixInfo(release.version)
+	if newVersion != nil && sha != "" {
 		repo.fetchChangeLog(context.Background(), fmt.Sprintf("v%s", release.version.String()), sha)
 		msg := composeReleaseMessage(repo.changeLog)
-		repo.createHotfixRelease(release.version, sha, suffix, msg)
-		v, err := semver.NewVersion(fmt.Sprintf("%s-%s", release.version.String(), suffix))
-		CheckError(err)
-		release.version = v
-		announceRelease(repo, v)
+		repo.createPreReleaseFix(newVersion, sha, msg)
+		release.version = newVersion
+		announceRelease(repo, newVersion)
+	}
+	return release
+}
+
+func newPostReleaseFix(repo *Repository) *Release {
+	release := &Release{
+		repository: repo,
+		version:    repo.latestStableRelease,
+	}
+
+	newVersion, sha := getPostReleaseFixInfo(release.version)
+	if newVersion != nil && sha != "" {
+		repo.fetchChangeLog(context.Background(), fmt.Sprintf("v%s", release.version.String()), sha)
+		msg := composeReleaseMessage(repo.changeLog)
+		repo.createPostReleaseFix(newVersion, sha, msg)
+		release.version = newVersion
+		announceRelease(repo, newVersion)
 	}
 	return release
 }

@@ -135,10 +135,10 @@ func (r *Repository) parsePR(ctx context.Context, entry *ChangeLogEntry) {
 
 }
 
-var squashLine = regexp.MustCompile(`\s*(.*)\s+\(#(\d+)\)`)
+var squashLine = regexp.MustCompile(`\s*(.*)\s+\(#(\d+)\)`) 
 
 // match <number>, then non-greedily match any non-space, an optional space, then capture anything else
-var mergeLine = regexp.MustCompile(`Merge pull request #(\d+) from (?:\S+)(?:\s*)(.*)`)
+var mergeLine = regexp.MustCompile(`Merge pull request #(\d+) from (?:\S+)(?:\s*)(.*)`) 
 
 func (r *Repository) fetchChangeLog(ctx context.Context, base string, head string) {
 	cmp, _, err := r.client.Repositories.CompareCommits(
@@ -267,9 +267,9 @@ func (repo *Repository) createRelease(version *semver.Version, message string) {
 	CheckError(err)
 }
 
-func (repo *Repository) createHotfixRelease(version *semver.Version, sha string, suffix string, message string) {
+func (repo *Repository) createPreReleaseFix(version *semver.Version, sha string, message string) {
 	ctx := context.Background()
-	tag := fmt.Sprintf("v%s+%s", version.String(), suffix)
+	tag := fmt.Sprintf("v%s", version.String())
 
 	_, _, err := repo.client.Repositories.CreateRelease(
 		ctx, repo.owner, repo.name,
@@ -281,7 +281,27 @@ func (repo *Repository) createHotfixRelease(version *semver.Version, sha string,
 		})
 
 	if err != nil {
-		fmt.Println("Error creating hotfix release:", err)
+		fmt.Println("Error creating pre-release:", err)
+		return
+	}
+	CheckError(err)
+}
+
+func (repo *Repository) createPostReleaseFix(version *semver.Version, sha string, message string) {
+	ctx := context.Background()
+	tag := fmt.Sprintf("v%s", version.String())
+
+	_, _, err := repo.client.Repositories.CreateRelease(
+		ctx, repo.owner, repo.name,
+		&github.RepositoryRelease{
+			Name:            &tag,
+			Body:            &message,
+			TagName:         &tag,
+			TargetCommitish: &sha,
+		})
+
+	if err != nil {
+		fmt.Println("Error creating post-release:", err)
 		return
 	}
 	CheckError(err)

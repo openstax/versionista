@@ -48,18 +48,21 @@ func eachRepository(repoSpec string, iterFn func(*Repository)) {
 
 func releaseSpecifiedProject(cmd *cobra.Command, args []string) {
 	var releases []*Release
-	eachRepository(args[0], func(repo *Repository) {
-		announceRepo(repo)
-		releases = append(releases, newRelease(repo))
-	})
-	announceVersions(args[0], releases)
-}
+	releaseType := getReleaseType()
+	if releaseType == "" {
+		return
+	}
 
-func hotfixSpecifiedProject(cmd *cobra.Command, args []string) {
-	var releases []*Release
 	eachRepository(args[0], func(repo *Repository) {
 		announceRepo(repo)
-		releases = append(releases, newHotfixRelease(repo))
+		switch releaseType {
+		case ReleaseTypePostReleaseFix:
+			releases = append(releases, newPostReleaseFix(repo))
+		case ReleaseTypePreReleaseFix:
+			releases = append(releases, newPreReleaseFix(repo))
+		default:
+			releases = append(releases, newRelease(repo))
+		}
 	})
 	announceVersions(args[0], releases)
 }
@@ -85,13 +88,6 @@ func configureCliCommands() {
 		Short: "release project(s)",
 		Args:  cobra.MinimumNArgs(1),
 		Run:   releaseSpecifiedProject,
-	})
-
-	rootCmd.AddCommand(&cobra.Command{
-		Use:   "hotfix",
-		Short: "hotfix project(s)",
-		Args:  cobra.MinimumNArgs(1),
-		Run:   hotfixSpecifiedProject,
 	})
 
 	rootCmd.AddCommand(&cobra.Command{
