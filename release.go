@@ -11,7 +11,7 @@ type Release struct {
 	version    *semver.Version
 }
 
-func newRelease(repo *Repository) *Release {
+func newRelease(repo *Repository, allRepos []*Repository) *Release {
 	repo.fetchChangeLog(context.Background(), fmt.Sprintf("v%s", repo.latestRelease.String()), repo.commitSHA)
 	release := &Release{
 		repository: repo,
@@ -23,7 +23,7 @@ func newRelease(repo *Repository) *Release {
 	} else {
 		newVersion := getVersion(release.version, repo.changeLog)
 		if newVersion != nil {
-			msg := composeReleaseMessage(repo.changeLog)
+			msg := composeReleaseMessage(repo.changeLog, repo, allRepos, newVersion)
 			fmt.Printf("  creating release %s\n%s", newVersion.String(), msg)
 			repo.createRelease(newVersion, msg)
 			release.version = newVersion
@@ -33,34 +33,38 @@ func newRelease(repo *Repository) *Release {
 	return release
 }
 
-func newPreReleaseFix(repo *Repository) *Release {
+func newPreReleaseFix(repo *Repository, allRepos []*Repository) *Release {
 	release := &Release{
 		repository: repo,
 		version:    repo.latestStableRelease,
 	}
 
-	newVersion, sha := getPreReleaseFixInfo(release.version)
+	newVersion, sha := getPreReleaseFixInfo(repo, release.version)
+
 	if newVersion != nil && sha != "" {
 		repo.fetchChangeLog(context.Background(), fmt.Sprintf("v%s", release.version.String()), sha)
-		msg := composeReleaseMessage(repo.changeLog)
-		repo.createPreReleaseFix(newVersion, sha, msg)
+		msg := composeReleaseMessage(repo.changeLog, repo, allRepos, newVersion)
+		repo.createPreRelease(newVersion, sha, msg)
 		release.version = newVersion
 		announceRelease(repo, newVersion)
 	}
 	return release
 }
 
-func newPostReleaseFix(repo *Repository) *Release {
+func newPostReleaseFix(repo *Repository, allRepos []*Repository) *Release {
+
+
 	release := &Release{
 		repository: repo,
 		version:    repo.latestStableRelease,
 	}
 
-	newVersion, sha := getPostReleaseFixInfo(release.version)
+	newVersion, sha := getPostReleaseFixInfo(repo, release.version)
+
 	if newVersion != nil && sha != "" {
 		repo.fetchChangeLog(context.Background(), fmt.Sprintf("v%s", release.version.String()), sha)
-		msg := composeReleaseMessage(repo.changeLog)
-		repo.createPostReleaseFix(newVersion, sha, msg)
+		msg := composeReleaseMessage(repo.changeLog, repo, allRepos, newVersion)
+		repo.createPostRelease(newVersion, sha, msg)
 		release.version = newVersion
 		announceRelease(repo, newVersion)
 	}

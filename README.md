@@ -28,20 +28,32 @@ add a `~/.versionista.yml` file in your home directory with api token:
 gh_token: <git hub personal api token>
 projects:
   <project name>:
-    - repo-organization/repo-name
+    - repo: repo-organization/repo-name
+      alias: MyCustomName
+      jira: true
+      crossLink: true
+    - repo: repo-organization/other-repo
+      alias: OtherName
+      jira: false
+      crossLink: false
 
 jira_boards:
-  - otter
-  - shrimp
+  - board-for-project-one
+  - board-for-project-two
+
 
 branches:
   repo-organization/repo-name: feature-branch
 
-aliases:
-  <project name>:
-    repo-organization/repo-name: MyCustomName
-
 ```
+
+### Configuration Options
+
+- **alias**: Custom display name for the repository (optional)
+- **jira**: Enable/disable JIRA ticket extraction from PR descriptions (default: true)
+- **crossLink**: Enable/disable cross-linking to other repositories in the project within release notes (default: false)
+
+When `crossLink` is enabled for a repository, its release notes will include a "Related Releases" section at the top with links to all repositories in the same project, showing either the newly released version or the latest existing version if no release was made.
 
 ## Commands
 

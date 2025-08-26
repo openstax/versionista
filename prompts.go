@@ -67,15 +67,13 @@ func announceVersions(project string, releases []*Release) {
 		),
 	)
 	fmt.Println("```")
-	aliases := viper.GetStringMapString(fmt.Sprintf("aliases.%s", project))
 
 	for _, release := range releases {
 		var name = release.repository.name
 
-		if aliases != nil {
-			if alias, ok := aliases[fmt.Sprintf("%s/%s", release.repository.owner, name)]; ok {
-				name = alias
-			}
+		// Use the alias from the repository config if available
+		if release.repository.alias != "" {
+			name = release.repository.alias
 		}
 		fmt.Printf(version_format,
 			name,
@@ -89,27 +87,59 @@ func announceRelease(repo *Repository, version *semver.Version) {
 	fmt.Printf("🎉 released version v%s 🎉\n", version.String())
 }
 
-func composeReleaseMessage(cl []ChangeLogEntry) string {
+func composeReleaseMessage(cl []ChangeLogEntry, currentRepo *Repository, allRepos []*Repository, currentVersion *semver.Version) string {
 	jiraSlug := viper.GetString("jira_slug")
 	fpath := os.TempDir() + "/versionista-changelog.txt"
 	f, err := os.Create(fpath)
 	CheckError(err)
 
-	f.WriteString("| PR | Author | Title | Merged Date | Internal Ticket # |\n")
-	f.WriteString("|----|--------|-------|-------------|-------------------|\n")
+	// Add cross-links if enabled for this repository
+	if currentRepo.crossLinkEnabled && len(allRepos) > 1 {
+		f.WriteString("## Related Releases\n\n")
+		for _, repo := range allRepos {
+			var repoName string
+			if repo.alias != "" {
+				repoName = repo.alias
+			} else {
+				repoName = repo.name
+			}
+			
+			var version *semver.Version
+			if repo == currentRepo {
+				// Use the version being released for the current repo
+				version = currentVersion
+			} else {
+				// Use the latest release version for other repos
+				version = repo.latestRelease
+			}
+			
+			releaseURL := fmt.Sprintf("https://github.com/%s/%s/releases/tag/v%s", 
+				repo.owner, repo.name, version.String())
+			f.WriteString(fmt.Sprintf("- [%s v%s](%s)\n", repoName, version.String(), releaseURL))
+		}
+		f.WriteString("\n---\n\n")
+	}
+
 	for _, c := range cl {
 		var tickets []string
 		for _, ticket := range c.Tickets {
 			tickets = append(tickets, fmt.Sprintf("[%s](https://%s.atlassian.net/browse/%s)", ticket, jiraSlug, ticket))
 		}
-		f.WriteString(fmt.Sprintf(
-			"| #%d | %s | %s | %s | %s |\n",
-			c.Number,
-			mdQuote(c.Author),
-			mdQuote(c.Title),
-			c.Date,
-			strings.Join(tickets, "  "),
-		))
+		
+		// Write the summary with PR title
+		f.WriteString(fmt.Sprintf("<summary>#%d: %s</summary>\n\n", c.Number, c.Title))
+		
+		// Write the details section with PR information
+		f.WriteString("<details>\n\n")
+		f.WriteString(fmt.Sprintf("**Author:** %s  \n", c.Author))
+		f.WriteString(fmt.Sprintf("**Merged Date:** %s  \n", c.Date))
+		if len(tickets) > 0 {
+			f.WriteString(fmt.Sprintf("**Internal Ticket #:** %s  \n", strings.Join(tickets, ", ")))
+		}
+		if c.Description != "" {
+			f.WriteString(fmt.Sprintf("\n**Description:**\n%s\n", c.Description))
+		}
+		f.WriteString("\n</details>\n\n")
 	}
 	f.Close()
 	var editor = viper.GetString("editor")
@@ -197,11 +227,12 @@ func getVersion(lastVersion *semver.Version, cl []ChangeLogEntry) *semver.Versio
 
 }
 
-func getPreReleaseFixInfo(lastVersion *semver.Version) (*semver.Version, string) {
+func getPreReleaseFixInfo(repo *Repository, lastVersion *semver.Version) (*semver.Version, string) {
 	fmt.Printf("Last version: %s\n", lastVersion.String())
 
 	prompt := promptui.Prompt{
-		Label: "Enter the SHA for the pre-release",
+		Label:   "Enter the SHA for the pre-release",
+		Default: repo.GetLatestSHA("main"),
 	}
 	sha, err := prompt.Run()
 	if err != nil {
@@ -210,7 +241,7 @@ func getPreReleaseFixInfo(lastVersion *semver.Version) (*semver.Version, string)
 	}
 
 	prompt = promptui.Prompt{
-		Label: "Enter the suffix for the pre-release fix version",
+		Label: "Enter the suffix for the pre-release",
 	}
 	suffix, err := prompt.Run()
 	if err != nil {
@@ -220,18 +251,19 @@ func getPreReleaseFixInfo(lastVersion *semver.Version) (*semver.Version, string)
 
 	version, err := lastVersion.SetPrerelease(suffix)
 	if err != nil {
-		fmt.Printf("Failed to set prerelease version: %v\n", err)
+		fmt.Printf("Failed to set pre-release version: %v\n", err)
 		return nil, ""
 	}
 
 	return &version, sha
 }
 
-func getPostReleaseFixInfo(lastVersion *semver.Version) (*semver.Version, string) {
+func getPostReleaseFixInfo(repo *Repository, lastVersion *semver.Version) (*semver.Version, string) {
 	fmt.Printf("Last version: %s\n", lastVersion.String())
 
 	prompt := promptui.Prompt{
-		Label: "Enter the SHA for the post-release",
+		Label:   "Enter the SHA for the post-release",
+		Default: repo.GetLatestSHA("main"),
 	}
 	sha, err := prompt.Run()
 	if err != nil {
@@ -248,9 +280,9 @@ func getPostReleaseFixInfo(lastVersion *semver.Version) (*semver.Version, string
 		return nil, ""
 	}
 
-	version, err := lastVersion.SetPrerelease(fmt.Sprintf("%s-%s", lastVersion.Prerelease(), suffix))
+	version, err := lastVersion.SetMetadata(suffix)
 	if err != nil {
-		fmt.Printf("Failed to set prerelease version: %v\n", err)
+		fmt.Printf("Failed to set post-release version: %v\n", err)
 		return nil, ""
 	}
 

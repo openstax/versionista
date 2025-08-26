@@ -13,40 +13,55 @@ import (
 	"time"
 )
 
+type RepoConfig struct {
+	Repo      string `mapstructure:"repo"`
+	Alias     string `mapstructure:"alias"`
+	Jira      bool   `mapstructure:"jira"`
+	CrossLink bool   `mapstructure:"crossLink"`
+}
+
 type ChangeLogEntry struct {
-	Number  int
-	Date    string
-	Author  string
-	Title   string
-	Tickets []string
+	Number      int
+	Date        string
+	Author      string
+	Title       string
+	Description string
+	Tickets     []string
 }
 
 type Repository struct {
 	client              *github.Client
 	owner               string
 	name                string
+	alias               string
 	commitSHA           string
 	ticketMatcher       *regexp.Regexp
+	jiraEnabled         bool
+	crossLinkEnabled    bool
 	latestRelease       *semver.Version
 	latestStableRelease *semver.Version
 	changeLog           []ChangeLogEntry
 }
 
-func NewRepository(path string, client *github.Client) *Repository {
-	ownerRepo := strings.Split(path, "/")
+func NewRepository(config RepoConfig, client *github.Client) *Repository {
+	ownerRepo := strings.Split(config.Repo, "/")
 	var branch string
-	branch = viper.GetString(fmt.Sprintf("branches.%s", path))
+	branch = viper.GetString(fmt.Sprintf("branches.%s", config.Repo))
 	if branch == "" {
 		branch = "main"
 	}
 	repo := &Repository{
-		client:        client,
-		owner:         ownerRepo[0],
-		name:          ownerRepo[1],
-		commitSHA:     branch,
+		client:           client,
+		owner:            ownerRepo[0],
+		name:             ownerRepo[1],
+		alias:            config.Alias,
+		commitSHA:        branch,
+		jiraEnabled:      config.Jira,
+		crossLinkEnabled: config.CrossLink,
 	}
+	
 	jiraBoards := viper.GetStringSlice("jira_boards")
-	if len(jiraBoards) > 0 {
+	if len(jiraBoards) > 0 && repo.jiraEnabled {
 		repo.ticketMatcher = regexp.MustCompile(fmt.Sprintf(`(?i)[^a-zA-Z0-9]*(%s)[-\s](\d+)[^a-zA-Z0-9]*`, strings.Join(jiraBoards, "|")))
 	}
 	return repo
@@ -70,6 +85,9 @@ func (repo *Repository) deleteRelease(release *github.RepositoryRelease) {
 }
 
 func (r *Repository) appendMatches(matches []string, content string) []string {
+	if !r.jiraEnabled || r.ticketMatcher == nil {
+		return matches
+	}
 	if r.ticketMatcher.MatchString(content) {
 		matched := r.ticketMatcher.FindStringSubmatch(content)
 		if len(matched) > 2 {
@@ -93,6 +111,11 @@ func (r *Repository) parsePR(ctx context.Context, entry *ChangeLogEntry) {
 	if pr.Title != nil && *pr.Title != "" {
 		entry.Title = *pr.Title
 	}
+	
+	if pr.Body != nil {
+		entry.Description = *pr.Body
+	}
+	
 	if r.ticketMatcher == nil {
 		return
 	}
@@ -267,7 +290,7 @@ func (repo *Repository) createRelease(version *semver.Version, message string) {
 	CheckError(err)
 }
 
-func (repo *Repository) createPreReleaseFix(version *semver.Version, sha string, message string) {
+func (repo *Repository) createPreRelease(version *semver.Version, sha string, message string) {
 	ctx := context.Background()
 	tag := fmt.Sprintf("v%s", version.String())
 
@@ -287,10 +310,11 @@ func (repo *Repository) createPreReleaseFix(version *semver.Version, sha string,
 	CheckError(err)
 }
 
-func (repo *Repository) createPostReleaseFix(version *semver.Version, sha string, message string) {
+func (repo *Repository) createPostRelease(version *semver.Version, sha string, message string) {
 	ctx := context.Background()
 	tag := fmt.Sprintf("v%s", version.String())
-
+	//fmt.Printf("RELE %s %s\n", sha, tag)
+	return
 	_, _, err := repo.client.Repositories.CreateRelease(
 		ctx, repo.owner, repo.name,
 		&github.RepositoryRelease{
@@ -305,4 +329,13 @@ func (repo *Repository) createPostReleaseFix(version *semver.Version, sha string
 		return
 	}
 	CheckError(err)
+}
+
+func (r *Repository) GetLatestSHA(branchName string) string {
+	ctx := context.Background()
+	branch, _, err := r.client.Repositories.GetBranch(ctx, r.owner, r.name, branchName)
+	if err != nil {
+		return ""
+	}
+	return branch.GetCommit().GetSHA()
 }

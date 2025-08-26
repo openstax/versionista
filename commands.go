@@ -17,14 +17,22 @@ func eachRepository(repoSpec string, iterFn func(*Repository)) {
 	repos := []*Repository{}
 
 	if len(ownerRepo) == 1 {
-		projectNames := viper.GetStringSlice(
-			fmt.Sprintf("projects.%s", repoSpec),
-		)
-		for _, name := range projectNames {
-			repos = append(repos, NewRepository(name, client))
+		// Handle project name - get list of repo configs
+		var repoConfigs []RepoConfig
+		err := viper.UnmarshalKey(fmt.Sprintf("projects.%s", repoSpec), &repoConfigs)
+		CheckError(err)
+		
+		for _, config := range repoConfigs {
+			repos = append(repos, NewRepository(config, client))
 		}
 	} else {
-		repos = append(repos, NewRepository(repoSpec, client))
+		// Handle direct repo specification - create a basic config
+		config := RepoConfig{
+			Repo:  repoSpec,
+			Alias: "",
+			Jira:  true, // Default to true for direct repo access
+		}
+		repos = append(repos, NewRepository(config, client))
 	}
 
 	announceFetching()
@@ -53,17 +61,24 @@ func releaseSpecifiedProject(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	// First, collect all repositories to pass as context for cross-linking
+	var allRepos []*Repository
 	eachRepository(args[0], func(repo *Repository) {
+		allRepos = append(allRepos, repo)
+	})
+
+	// Then process each repository with full context
+	for _, repo := range allRepos {
 		announceRepo(repo)
 		switch releaseType {
 		case ReleaseTypePostReleaseFix:
-			releases = append(releases, newPostReleaseFix(repo))
+			releases = append(releases, newPostReleaseFix(repo, allRepos))
 		case ReleaseTypePreReleaseFix:
-			releases = append(releases, newPreReleaseFix(repo))
+			releases = append(releases, newPreReleaseFix(repo, allRepos))
 		default:
-			releases = append(releases, newRelease(repo))
+			releases = append(releases, newRelease(repo, allRepos))
 		}
-	})
+	}
 	announceVersions(args[0], releases)
 }
 
