@@ -4,3 +4,4 @@ dist
 .DS_Store
 # Added by goreleaser init:
 dist/
+coverage*

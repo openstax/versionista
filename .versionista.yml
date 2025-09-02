@@ -1,0 +1,19 @@
+gh_token: fake_token_for_testing
+projects:
+  testproject:
+    - repo: org1/repo1
+      alias: Test Repo 1
+      jira: true
+      crossLink: true
+    - repo: org2/repo2
+      alias: Test Repo 2
+      jira: false
+      crossLink: false
+
+jira_boards:
+  - TEST
+  - PROJ
+
+branches:
+  org1/repo1: main
+  org2/repo2: develop
