@@ -1,4 +1,4 @@
-package config
+package main
 
 import (
 	"fmt"
@@ -11,6 +11,7 @@ type Config struct {
 	GHToken    string                        `mapstructure:"gh_token"`
 	Projects   map[string][]RepoConfig       `mapstructure:"projects"`
 	JiraBoards []string                      `mapstructure:"jira_boards"`
+	JiraOrgId  string                        `mapstructure:"jira_org_id"`
 	Branches   map[string]string             `mapstructure:"branches"`
 }
 
@@ -21,9 +22,6 @@ type RepoConfig struct {
 	CrossLink bool   `mapstructure:"crossLink"`
 }
 
-func Load() (*Config, error) {
-	return LoadFromPath("")
-}
 
 func LoadFromPath(configPath string) (*Config, error) {
 	if configPath != "" {
@@ -80,6 +78,7 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("at least one project must be configured")
 	}
 
+	jiraEnabledProjectFound := false
 	for projectName, repos := range c.Projects {
 		if len(repos) == 0 {
 			return fmt.Errorf("project %s has no repositories configured", projectName)
@@ -89,7 +88,14 @@ func (c *Config) Validate() error {
 			if repo.Repo == "" {
 				return fmt.Errorf("project %s, repo %d: repo field is required", projectName, i)
 			}
+			if repo.Jira {
+				jiraEnabledProjectFound = true
+			}
 		}
+	}
+
+	if jiraEnabledProjectFound && c.JiraOrgId == "" {
+		return fmt.Errorf("jira_org_id is required when a project has jira enabled")
 	}
 
 	return nil

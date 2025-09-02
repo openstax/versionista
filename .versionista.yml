@@ -10,6 +10,8 @@ projects:
       jira: false
       crossLink: false
 
+jira_org_id: openstax
+
 jira_boards:
   - TEST
   - PROJ

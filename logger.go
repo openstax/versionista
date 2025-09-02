@@ -1,4 +1,4 @@
-package logging
+package main
 
 import (
 	"log"
@@ -38,11 +38,11 @@ type Logger struct {
 	level       Level
 }
 
-func New() *Logger {
-	return NewWithLevel(WarnLevel)
+func NewLogger() *Logger {
+	return NewLoggerWithLevel(WarnLevel)
 }
 
-func NewWithLevel(level Level) *Logger {
+func NewLoggerWithLevel(level Level) *Logger {
 	return &Logger{
 		infoLogger:  log.New(os.Stdout, "[INFO] ", log.LstdFlags),
 		warnLogger:  log.New(os.Stdout, "[WARN] ", log.LstdFlags),
@@ -88,28 +88,7 @@ func (l *Logger) FatalErr(err error, message string) {
 	}
 }
 
-var DefaultLogger = New()
-
-func Info(format string, args ...interface{}) {
-	DefaultLogger.Info(format, args...)
+func (l *Logger) IsDebugEnabled() bool {
+	return l.level <= DebugLevel
 }
 
-func Warn(format string, args ...interface{}) {
-	DefaultLogger.Warn(format, args...)
-}
-
-func Error(format string, args ...interface{}) {
-	DefaultLogger.Error(format, args...)
-}
-
-func Debug(format string, args ...interface{}) {
-	DefaultLogger.Debug(format, args...)
-}
-
-func Fatal(format string, args ...interface{}) {
-	DefaultLogger.Fatal(format, args...)
-}
-
-func FatalErr(err error, message string) {
-	DefaultLogger.FatalErr(err, message)
-}

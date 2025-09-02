@@ -1,4 +1,4 @@
-package github
+package main
 
 import (
 	"testing"
@@ -78,18 +78,15 @@ func TestRepositoryString(t *testing.T) {
 	}
 }
 
-// Note: The Client methods that make actual GitHub API calls would require
-// integration tests or mocking the GitHub API. For unit tests, we focus on
-// testing the utility functions like ParseRepoSpec and Repository.String()
 
 func TestClientMethods(t *testing.T) {
 	// This test verifies that the client methods exist with the correct signatures
 	// Actual testing would require mocking the GitHub API or integration tests
 	
 	// Test that New function creates a client
-	client := New("fake-token")
+	client := NewClient("fake-token")
 	if client == nil {
-		t.Error("Expected New() to return a client, got nil")
+		t.Error("Expected NewClient() to return a client, got nil")
 	}
 
 	// Test time calculation for recent PRs (this part we can test without API calls)

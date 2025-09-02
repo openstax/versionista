@@ -1,4 +1,4 @@
-package version
+package main
 
 import (
 	"fmt"
@@ -27,6 +27,12 @@ const (
 )
 
 func BumpVersion(current *semver.Version, bumpType BumpType) *semver.Version {
+	// Special case: if current version is 0.0.0 (no previous release), default to 1.0.0
+	if current.String() == "0.0.0" {
+		newVer, _ := semver.NewVersion("1.0.0")
+		return newVer
+	}
+	
 	switch bumpType {
 	case BumpMajor:
 		newVer := current.IncMajor()
@@ -44,6 +50,9 @@ func BumpVersion(current *semver.Version, bumpType BumpType) *semver.Version {
 }
 
 func FormatVersion(v *semver.Version) string {
+	if v == nil {
+		return "(not set)"
+	}
 	return fmt.Sprintf("v%s", v.String())
 }
 
@@ -60,8 +69,3 @@ func CreateHotfixVersion(baseVersion *semver.Version, suffix string) (*semver.Ve
 	return hotfixVersion, nil
 }
 
-func IsValidVersion(versionStr string) bool {
-	versionStr = strings.TrimPrefix(versionStr, "v")
-	_, err := semver.NewVersion(versionStr)
-	return err == nil
-}

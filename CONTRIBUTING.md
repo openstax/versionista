@@ -50,9 +50,7 @@ This document provides guidance for contributors working with the versionista co
 
 ##### Release Command Flags
 
-| Flag | Short | Description | Default | Use Case |
-|------|-------|-------------|---------|----------|
-| `--auto` | `-a` | Use automatic mode with patch bump | Interactive mode | CI/CD pipelines, automated workflows |
+Currently, all releases use interactive mode by default. No additional flags are available for the release command.
 
 #### Development Examples
 
@@ -68,17 +66,6 @@ This document provides guidance for contributors working with the versionista co
 ./versionista release myproject --config ./test-config.yml
 ```
 
-##### Automated Testing/CI
-```bash
-# Automatic mode for scripting
-./versionista release myproject --auto
-
-# Automatic with error-only logging
-./versionista release myproject --auto --log-level error
-
-# Fully specified command for CI
-./versionista release myproject --auto --config /etc/versionista/config.yml --log-level warn
-```
 
 ##### Debugging and Troubleshooting
 ```bash
@@ -99,9 +86,9 @@ This document provides guidance for contributors working with the versionista co
    ./versionista release test-project --log-level debug
    ```
 
-2. **Testing Changes**: Use automatic mode to test non-interactive flows
+2. **Testing Changes**: Use interactive mode with different log levels
    ```bash
-   ./versionista release test-project --auto --log-level info
+   ./versionista release test-project --log-level info
    ```
 
 3. **Configuration Testing**: Test different config files

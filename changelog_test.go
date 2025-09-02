@@ -1,4 +1,4 @@
-package changelog
+package main
 
 import (
 	"strings"
@@ -73,6 +73,31 @@ func TestExtractTickets(t *testing.T) {
 			text:     "This fixes WRONG-123",
 			expected: []string{},
 		},
+		{
+			name:     "ticket in URL",
+			text:     "Fixed, see https://openstax.atlassian.net/browse/TEST-291",
+			expected: []string{"TEST-291"},
+		},
+		{
+			name:     "ticket in JIRA URL",
+			text:     "Fixed, see https://company.atlassian.net/browse/PROJ-456",
+			expected: []string{"PROJ-456"},
+		},
+		{
+			name:     "case insensitive - lowercase ticket with uppercase board",
+			text:     "This fixes test-123",
+			expected: []string{"test-123"},
+		},
+		{
+			name:     "case insensitive - uppercase ticket with lowercase board", 
+			text:     "This fixes PROJ-789",
+			expected: []string{"PROJ-789"},
+		},
+		{
+			name:     "case insensitive - mixed case ticket",
+			text:     "Fixed TeSt-456 and PrOj-123",
+			expected: []string{"TeSt-456", "PrOj-123"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -98,6 +123,105 @@ func TestExtractTicketsNoBoards(t *testing.T) {
 	tickets := generator.ExtractTickets("This fixes TEST-123")
 	if len(tickets) != 0 {
 		t.Errorf("Expected no tickets when no boards configured, got: %v", tickets)
+	}
+}
+
+func TestExtractTicketsOtterBoard(t *testing.T) {
+	// Test with OTTER board specifically
+	generator := NewGenerator([]string{"OTTER"})
+
+	tests := []struct {
+		name     string
+		text     string
+		expected []string
+	}{
+		{
+			name:     "OTTER ticket in URL",
+			text:     "Fixed, see https://openstax.atlassian.net/browse/OTTER-291",
+			expected: []string{"OTTER-291"},
+		},
+		{
+			name:     "OTTER ticket plain text",
+			text:     "This fixes OTTER-291",
+			expected: []string{"OTTER-291"},
+		},
+		{
+			name:     "OTTER ticket with OTTER board configured",
+			text:     "Fixed, see https://openstax.atlassian.net/browse/OTTER-291",
+			expected: []string{"OTTER-291"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tickets := generator.ExtractTickets(tt.text)
+			
+			if len(tickets) != len(tt.expected) {
+				t.Errorf("Expected %d tickets, got: %d", len(tt.expected), len(tickets))
+			}
+			
+			for i, expected := range tt.expected {
+				if i >= len(tickets) || tickets[i] != expected {
+					t.Errorf("Expected ticket %s at index %d, got: %v", expected, i, tickets)
+				}
+			}
+		})
+	}
+}
+
+func TestExtractTicketsOtterNotConfigured(t *testing.T) {
+	// Test with only TEST and PROJ boards - OTTER not configured
+	generator := NewGenerator([]string{"TEST", "PROJ"})
+
+	tickets := generator.ExtractTickets("Fixed, see https://openstax.atlassian.net/browse/OTTER-291")
+	if len(tickets) != 0 {
+		t.Errorf("Expected no tickets when OTTER board not configured, got: %v", tickets)
+	}
+}
+
+func TestExtractTicketsCaseInsensitive(t *testing.T) {
+	// Test case insensitive matching with specific examples
+	tests := []struct {
+		name       string
+		jiraBoards []string
+		text       string
+		expected   []string
+	}{
+		{
+			name:       "otter-123 matches board OTTER",
+			jiraBoards: []string{"OTTER"},
+			text:       "Fixed otter-123",
+			expected:   []string{"otter-123"},
+		},
+		{
+			name:       "board foo matches ticket FOO-291 in URL",
+			jiraBoards: []string{"foo"},
+			text:       "Fixed, see https://openstax.atlassian.net/browse/FOO-291",
+			expected:   []string{"FOO-291"},
+		},
+		{
+			name:       "mixed case boards and tickets",
+			jiraBoards: []string{"TeSt", "PrOj"},
+			text:       "Fixed test-123 and PROJ-456 and TeSt-789",
+			expected:   []string{"test-123", "PROJ-456", "TeSt-789"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			generator := NewGenerator(tt.jiraBoards)
+			tickets := generator.ExtractTickets(tt.text)
+			
+			if len(tickets) != len(tt.expected) {
+				t.Errorf("Expected %d tickets, got: %d", len(tt.expected), len(tickets))
+			}
+			
+			for i, expected := range tt.expected {
+				if i >= len(tickets) || tickets[i] != expected {
+					t.Errorf("Expected ticket %s at index %d, got: %v", expected, i, tickets)
+				}
+			}
+		})
 	}
 }
 
@@ -156,7 +280,33 @@ func TestParsePRNumber(t *testing.T) {
 	}
 }
 
-func TestBuildReleaseNotes(t *testing.T) {
+func TestBuildCrossLinksString(t *testing.T) {
+	crossLinks := []CrossLink{
+		{
+			Name:    "Related Repo",
+			Version: "1.2.3",
+			URL:     "https://github.com/org/repo/releases/tag/v1.2.3",
+		},
+	}
+
+	result := BuildCrossLinksString(crossLinks)
+
+	if !strings.Contains(result, "## Related Releases") {
+		t.Error("Expected cross-links section in release notes")
+	}
+	if !strings.Contains(result, "Related Repo v1.2.3") {
+		t.Error("Expected cross-link to Related Repo")
+	}
+}
+
+func TestBuildCrossLinksStringEmpty(t *testing.T) {
+	result := BuildCrossLinksString([]CrossLink{})
+	if result != "" {
+		t.Error("Expected empty string for no cross-links")
+	}
+}
+
+func TestBuildEntriesTableString(t *testing.T) {
 	entries := []Entry{
 		{
 			Number:      123,
@@ -176,62 +326,47 @@ func TestBuildReleaseNotes(t *testing.T) {
 		},
 	}
 
-	crossLinks := []CrossLink{
-		{
-			Name:    "Related Repo",
-			Version: "1.2.3",
-			URL:     "https://github.com/org/repo/releases/tag/v1.2.3",
-		},
-	}
+	result := BuildEntriesTableString(entries, true, "")
 
-	releaseNotes := BuildReleaseNotes(entries, crossLinks)
-
-	// Check for cross-links section
-	if !strings.Contains(releaseNotes, "## Related Releases") {
-		t.Error("Expected cross-links section in release notes")
-	}
-
-	if !strings.Contains(releaseNotes, "Related Repo v1.2.3") {
-		t.Error("Expected cross-link to Related Repo")
-	}
-
-	// Check for table header
-	if !strings.Contains(releaseNotes, "| PR # | Author | Title | Merged Date | Ticket # |") {
+	if !strings.Contains(result, "| PR # | Author | Title | Merged Date | Ticket # |") {
 		t.Error("Expected table header in release notes")
 	}
-
-	// Check for PR entries in table format
-	if !strings.Contains(releaseNotes, "| #123 | testuser | <details><summary>Fix important bug</summary><br>This fixes a critical issue</details> | 2023-01-01 | TEST-456 |") {
+	if !strings.Contains(result, "| #123 | testuser | <details><summary>Fix important bug</summary><br>This fixes a critical issue</details> | 2023-01-01 | TEST-456 |") {
 		t.Error("Expected PR #123 in table format with details/summary tags")
 	}
-
-	if !strings.Contains(releaseNotes, "| #124 | anotheruser | Add new feature | 2023-01-02 |  |") {
+	if !strings.Contains(result, "| #124 | anotheruser | Add new feature | 2023-01-02 |  |") {
 		t.Error("Expected PR #124 in table format (no description, so no details tags)")
 	}
-
-	if !strings.Contains(releaseNotes, "TEST-456") {
+	if !strings.Contains(result, "TEST-456") {
 		t.Error("Expected ticket reference")
+	}
+	if strings.Contains(result, "[TEST-456]") {
+		t.Error("Did not expect ticket to be a link")
 	}
 }
 
-func TestBuildReleaseNotesNoCrossLinks(t *testing.T) {
+func TestBuildEntriesTableStringJiraDisabled(t *testing.T) {
 	entries := []Entry{
 		{
-			Number: 123,
-			Title:  "Test PR",
+			Number:      123,
+			Date:        "2023-01-01",
+			Author:      "testuser",
+			Title:       "Fix important bug",
+			Description: "This fixes a critical issue",
+			Tickets:     []string{"TEST-456"},
 		},
 	}
 
-	releaseNotes := BuildReleaseNotes(entries, []CrossLink{})
+	result := BuildEntriesTableString(entries, false, "")
 
-	// Should not contain cross-links section
-	if strings.Contains(releaseNotes, "## Related Releases") {
-		t.Error("Should not contain cross-links section when none provided")
+	if strings.Contains(result, "| PR # | Author | Title | Merged Date | Ticket # |") {
+		t.Error("Did not expect ticket column in table header")
 	}
-
-	// Should still contain PR entry in table format
-	if !strings.Contains(releaseNotes, "| #123 | ") {
-		t.Error("Expected PR entry in table format")
+	if strings.Contains(result, "TEST-456") {
+		t.Error("Did not expect ticket reference in table")
+	}
+	if !strings.Contains(result, "| #123 | testuser | <details><summary>Fix important bug</summary><br>This fixes a critical issue</details> | 2023-01-01 |") {
+		t.Error("Expected PR #123 in table format without ticket number")
 	}
 }
 
@@ -294,3 +429,4 @@ func TestRemoveDuplicates(t *testing.T) {
 		}
 	}
 }
+

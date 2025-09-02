@@ -1,4 +1,4 @@
-package github
+package main
 
 import (
 	"context"
@@ -15,7 +15,7 @@ type Client struct {
 	ctx context.Context
 }
 
-func New(token string) *Client {
+func NewClient(token string) *Client {
 	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
@@ -131,6 +131,58 @@ func (c *Client) CreateRelease(repo *Repository, release *github.RepositoryRelea
 	return createdRelease, nil
 }
 
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func (c *Client) GetLastNMergedPRs(repo *Repository, count int) ([]*github.PullRequest, error) {
+	opts := &github.PullRequestListOptions{
+		State:     "closed",
+		Sort:      "updated",
+		Direction: "desc",
+		ListOptions: github.ListOptions{
+			Page:    1,
+			PerPage: minInt(count, 100), // GitHub API limit is 100 per page
+		},
+	}
+
+	var allPRs []*github.PullRequest
+	needed := count
+	
+	for needed > 0 {
+		prs, resp, err := c.PullRequests.List(c.ctx, repo.Owner, repo.Name, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get pull requests for %s: %w", repo, err)
+		}
+
+		for _, pr := range prs {
+			// Only include merged PRs
+			if pr.GetMergedAt().IsZero() {
+				continue
+			}
+			
+			allPRs = append(allPRs, pr)
+			needed--
+			
+			if needed == 0 {
+				return allPRs, nil
+			}
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+		// Update PerPage for remaining items
+		opts.PerPage = minInt(needed, 100)
+	}
+
+	return allPRs, nil
+}
+
 func (c *Client) CreateReleaseFromSHA(repo *Repository, release *github.RepositoryRelease, targetCommitish string) (*github.RepositoryRelease, error) {
 	// Set the target commitish (SHA) for the release
 	release.TargetCommitish = &targetCommitish
@@ -140,4 +192,31 @@ func (c *Client) CreateReleaseFromSHA(repo *Repository, release *github.Reposito
 		return nil, fmt.Errorf("failed to create release from SHA %s for %s: %w", targetCommitish, repo, err)
 	}
 	return createdRelease, nil
+}
+
+func (c *Client) GetPullRequestComments(repo *Repository, number int) ([]*github.IssueComment, error) {
+	opts := &github.IssueListCommentsOptions{
+		ListOptions: github.ListOptions{
+			Page:    1,
+			PerPage: 100,
+		},
+	}
+
+	var allComments []*github.IssueComment
+	
+	for {
+		comments, resp, err := c.Issues.ListComments(c.ctx, repo.Owner, repo.Name, number, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get comments for PR #%d in %s: %w", number, repo, err)
+		}
+		
+		allComments = append(allComments, comments...)
+		
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return allComments, nil
 }

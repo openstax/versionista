@@ -1,4 +1,4 @@
-package logging
+package main
 
 import (
 	"bytes"
@@ -52,7 +52,7 @@ func TestLoggerLevels(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run("", func(t *testing.T) {
-			logger := NewWithLevel(test.level)
+			logger := NewLoggerWithLevel(test.level)
 
 			// Capture output
 			var debugBuf, infoBuf, warnBuf, errorBuf bytes.Buffer
@@ -107,14 +107,14 @@ func TestLoggerLevels(t *testing.T) {
 }
 
 func TestNewLogger(t *testing.T) {
-	logger := New()
+	logger := NewLogger()
 	if logger.level != WarnLevel {
 		t.Errorf("Expected default level to be WarnLevel, got %v", logger.level)
 	}
 }
 
 func TestNewLoggerWithLevel(t *testing.T) {
-	logger := NewWithLevel(DebugLevel)
+	logger := NewLoggerWithLevel(DebugLevel)
 	if logger.level != DebugLevel {
 		t.Errorf("Expected level to be DebugLevel, got %v", logger.level)
 	}

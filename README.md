@@ -16,7 +16,7 @@ Versionista is a modular Go CLI tool that automates GitHub releases by analyzing
 - **Smart Repository Handling**: Automatically handles repositories without releases (defaults to v0.0.0, uses last month's PRs)
 - **Table-Format Release Notes**: Generates clean markdown tables with collapsible PR descriptions
 - **Flexible Configuration**: Support both project-based and individual repository releases
-- **Semantic Versioning**: Interactive or automatic version bumping with semantic versioning support
+- **Semantic Versioning**: Interactive version bumping with semantic versioning support
 - **Configurable Logging**: Multiple log levels (debug, info, warn, error) for different use cases
 
 ## How It Works
@@ -99,9 +99,7 @@ Available for all commands:
 
 #### Release Command Flags
 
-| Flag | Short | Description | Default |
-|------|-------|-------------|---------|
-| `--auto` | `-a` | Use automatic mode with patch bump | Interactive mode |
+Currently, all releases use interactive mode by default. No additional flags are available for the release command.
 
 ### Usage Examples
 
@@ -117,17 +115,6 @@ versionista release organization/repo-name
 versionista release myproject --log-level debug
 ```
 
-#### Automatic Mode
-```bash
-# Automatic release with patch bump (no user interaction)
-versionista release myproject --auto
-
-# Automatic release with custom config file
-versionista release myproject --auto --config /path/to/config.yml
-
-# Shorthand automatic mode
-versionista release organization/repo -a
-```
 
 #### Review Commands
 ```bash
@@ -146,11 +133,6 @@ versionista review myproject --config /path/to/config.yml --log-level info
 - Allows manual decision-making for each repository
 - Ideal for manual releases and version planning
 
-**Automatic Mode (`--auto`)**:
-- Automatically applies patch version bumps
-- No user interaction required
-- Suitable for CI/CD pipelines and automated workflows
-- Fails fast on any errors
 
 ### Release Notes Format
 

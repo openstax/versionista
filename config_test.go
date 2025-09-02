@@ -1,4 +1,4 @@
-package config
+package main
 
 import (
 	"io/ioutil"
@@ -23,6 +23,8 @@ projects:
 jira_boards:
   - TEST
   - PROJ
+
+jira_org_id: my-org
 
 branches:
   org1/repo1: main
@@ -78,6 +80,10 @@ branches:
 	if !repo1.CrossLink {
 		t.Error("Expected CrossLink to be enabled")
 	}
+
+	if cfg.JiraOrgId != "my-org" {
+		t.Errorf("Expected jira_org_id 'my-org', got: %s", cfg.JiraOrgId)
+	}
 }
 
 func TestValidate(t *testing.T) {
@@ -87,7 +93,20 @@ func TestValidate(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name: "valid config",
+			name: "valid config with jira",
+			config: Config{
+				GHToken:   "test_token",
+				JiraOrgId: "my-org",
+				Projects: map[string][]RepoConfig{
+					"test": {
+						{Repo: "owner/repo", Alias: "Test", Jira: true, CrossLink: false},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "jira enabled without jira_org_id",
 			config: Config{
 				GHToken: "test_token",
 				Projects: map[string][]RepoConfig{
@@ -96,7 +115,7 @@ func TestValidate(t *testing.T) {
 					},
 				},
 			},
-			expectError: false,
+			expectError: true,
 		},
 		{
 			name: "missing gh_token",

@@ -1,12 +1,10 @@
-package prompts
+package main
 
 import (
 	"testing"
 
 	"github.com/Masterminds/semver"
 	
-	"github.com/openstax/versionista/pkg/changelog"
-	"github.com/openstax/versionista/pkg/version"
 )
 
 func TestBumpChoice(t *testing.T) {
@@ -14,7 +12,7 @@ func TestBumpChoice(t *testing.T) {
 	
 	choice := BumpChoice{
 		Label:   "Patch",
-		Type:    version.BumpPatch,
+		Type:    BumpPatch,
 		Version: v,
 	}
 	
@@ -22,7 +20,7 @@ func TestBumpChoice(t *testing.T) {
 		t.Errorf("Expected label 'Patch', got %s", choice.Label)
 	}
 	
-	if choice.Type != version.BumpPatch {
+	if choice.Type != BumpPatch {
 		t.Errorf("Expected bump type BumpPatch, got %s", choice.Type)
 	}
 	
@@ -31,18 +29,14 @@ func TestBumpChoice(t *testing.T) {
 	}
 }
 
-// Note: The interactive prompt functions cannot be easily tested without mocking promptui
-// These functions would typically be tested with integration tests or by mocking the promptui library
 func TestPromptFunctionsExist(t *testing.T) {
 	// This test just verifies that the functions exist and have the right signatures
 	
 	// These functions would normally prompt for user input, so we can't call them in tests
 	// But we can verify they exist and have the correct signatures
-	var f1 func(string, *semver.Version, []changelog.Entry) (*semver.Version, version.BumpType, *HotfixInfo, error) = PromptForVersionBump
-	var f2 func(string, bool) (bool, error) = PromptToDelete
+	var f1 func(string, *semver.Version, []Entry) (*semver.Version, BumpType, *HotfixInfo, error) = PromptForVersionBump
 	var f3 func(*semver.Version) (string, string, error) = PromptForHotfix
 	
 	_ = f1
-	_ = f2
 	_ = f3
 }

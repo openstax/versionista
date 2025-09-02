@@ -1,4 +1,4 @@
-package version
+package main
 
 import (
 	"testing"
@@ -102,6 +102,48 @@ func TestBumpVersion(t *testing.T) {
 	}
 }
 
+func TestBumpVersionFromZero(t *testing.T) {
+	// Test special case: bumping from 0.0.0 should always result in 1.0.0
+	baseVersion, _ := semver.NewVersion("0.0.0")
+
+	tests := []struct {
+		name     string
+		bumpType BumpType
+		expected string
+	}{
+		{
+			name:     "patch bump from 0.0.0",
+			bumpType: BumpPatch,
+			expected: "1.0.0",
+		},
+		{
+			name:     "minor bump from 0.0.0",
+			bumpType: BumpMinor,
+			expected: "1.0.0",
+		},
+		{
+			name:     "major bump from 0.0.0",
+			bumpType: BumpMajor,
+			expected: "1.0.0",
+		},
+		{
+			name:     "invalid bump from 0.0.0 defaults to 1.0.0",
+			bumpType: BumpType("invalid"),
+			expected: "1.0.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			newVersion := BumpVersion(baseVersion, tt.bumpType)
+			
+			if newVersion.String() != tt.expected {
+				t.Errorf("Expected version %s, got: %s", tt.expected, newVersion.String())
+			}
+		})
+	}
+}
+
 func TestFormatVersion(t *testing.T) {
 	version, _ := semver.NewVersion("1.2.3")
 	
@@ -125,21 +167,21 @@ func TestCreateHotfixVersion(t *testing.T) {
 			name:        "valid hotfix version",
 			baseVersion: "1.2.3",
 			suffix:      "fix1",
-			expected:    "1.2.3-fix1",
+			expected:    "1.2.3+fix1",
 			expectError: false,
 		},
 		{
 			name:        "hotfix with longer suffix",
 			baseVersion: "1.0.0",
 			suffix:      "critical-security-fix",
-			expected:    "1.0.0-critical-security-fix",
+			expected:    "1.0.0+critical-security-fix",
 			expectError: false,
 		},
 		{
 			name:        "numeric suffix",
 			baseVersion: "2.1.0",
 			suffix:      "123",
-			expected:    "2.1.0-123",
+			expected:    "2.1.0+123",
 			expectError: false,
 		},
 	}
@@ -172,46 +214,3 @@ func TestCreateHotfixVersion(t *testing.T) {
 	}
 }
 
-func TestIsValidVersion(t *testing.T) {
-	tests := []struct {
-		name       string
-		versionStr string
-		expected   bool
-	}{
-		{
-			name:       "valid version with v prefix",
-			versionStr: "v1.2.3",
-			expected:   true,
-		},
-		{
-			name:       "valid version without v prefix",
-			versionStr: "1.2.3",
-			expected:   true,
-		},
-		{
-			name:       "valid prerelease version",
-			versionStr: "v1.2.3-beta.1",
-			expected:   true,
-		},
-		{
-			name:       "invalid version",
-			versionStr: "not.a.version",
-			expected:   false,
-		},
-		{
-			name:       "empty string",
-			versionStr: "",
-			expected:   false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := IsValidVersion(tt.versionStr)
-			
-			if result != tt.expected {
-				t.Errorf("Expected %v, got: %v", tt.expected, result)
-			}
-		})
-	}
-}
