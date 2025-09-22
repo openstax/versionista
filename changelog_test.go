@@ -98,6 +98,21 @@ func TestExtractTickets(t *testing.T) {
 			text:     "Fixed TeSt-456 and PrOj-123",
 			expected: []string{"TeSt-456", "PrOj-123"},
 		},
+		{
+			name:     "ticket with space separator",
+			text:     "This fixes TEST 123",
+			expected: []string{"TEST 123"},
+		},
+		{
+			name:     "multiple tickets with mixed separators",
+			text:     "This fixes TEST-123 and PROJ 456",
+			expected: []string{"TEST-123", "PROJ 456"},
+		},
+		{
+			name:     "case insensitive - lowercase ticket with space",
+			text:     "This fixes test 123",
+			expected: []string{"test 123"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -256,6 +271,12 @@ func TestParsePRNumber(t *testing.T) {
 			expected:      0,
 			expectError:   true,
 		},
+		{
+			name:          "no PR number with hash in word",
+			commitMessage: "color:#123456",
+			expected:      0,
+			expectError:   true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -326,22 +347,19 @@ func TestBuildEntriesTableString(t *testing.T) {
 		},
 	}
 
-	result := BuildEntriesTableString(entries, true, "")
+	result := BuildEntriesTableString(entries, true, "my-org")
 
 	if !strings.Contains(result, "| PR # | Author | Title | Merged Date | Ticket # |") {
 		t.Error("Expected table header in release notes")
 	}
-	if !strings.Contains(result, "| #123 | testuser | <details><summary>Fix important bug</summary><br>This fixes a critical issue</details> | 2023-01-01 | TEST-456 |") {
+	if !strings.Contains(result, "| #123 | testuser | <details><summary>Fix important bug</summary><br>This fixes a critical issue</details> | 2023-01-01 | [TEST-456](https://my-org.atlassian.net/browse/TEST-456) |") {
 		t.Error("Expected PR #123 in table format with details/summary tags")
 	}
 	if !strings.Contains(result, "| #124 | anotheruser | Add new feature | 2023-01-02 |  |") {
 		t.Error("Expected PR #124 in table format (no description, so no details tags)")
 	}
-	if !strings.Contains(result, "TEST-456") {
+	if !strings.Contains(result, "[TEST-456](https://my-org.atlassian.net/browse/TEST-456)") {
 		t.Error("Expected ticket reference")
-	}
-	if strings.Contains(result, "[TEST-456]") {
-		t.Error("Did not expect ticket to be a link")
 	}
 }
 

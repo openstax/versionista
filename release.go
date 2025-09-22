@@ -23,14 +23,16 @@ type Manager struct {
 	logger    *Logger
 	generator *Generator
 	jiraOrgId string
+	dryRun    bool
 }
 
-func NewManager(client *Client, logger *Logger, jiraBoards []string, jiraOrgId string) *Manager {
+func NewManager(client *Client, logger *Logger, jiraBoards []string, jiraOrgId string, dryRun bool) *Manager {
 	return &Manager{
 		client:    client,
 		logger:    logger,
 		generator: NewGenerator(jiraBoards),
 		jiraOrgId: jiraOrgId,
+		dryRun:    dryRun,
 	}
 }
 
@@ -229,6 +231,12 @@ func (m *Manager) CreateRelease(ctx context.Context, repo *ReleaseRepository, ne
 	tagName := FormatVersion(newVersion)
 	isDraft := false
 
+	if m.dryRun {
+		m.logger.Info("[DRY RUN] Would create release %s for %s", tagName, repo.Repository)
+		m.logger.Debug("[DRY RUN] Release notes:\n%s", releaseNotes)
+		return nil
+	}
+
 	release := &github.RepositoryRelease{
 		TagName:    &tagName,
 		Name:       &tagName,
@@ -257,27 +265,35 @@ func (m *Manager) CreateReleaseFromEntries(ctx context.Context, repo *ReleaseRep
 	return m.CreateRelease(ctx, repo, newVersion, releaseNotes, releaseType)
 }
 
-func (m *Manager) CreateHotfixRelease(ctx context.Context, repo *ReleaseRepository, newVersion *semver.Version, 
-	releaseNotes string, releaseType Type, targetSHA string) error {
-	
-	tagName := FormatVersion(newVersion)
-	isDraft := false
+// func (m *Manager) CreateHotfixRelease(ctx context.Context, repo *ReleaseRepository, newVersion *semver.Version,
+// 	releaseNotes string, releaseType Type, targetSHA string) error {
 
-	release := &github.RepositoryRelease{
-		TagName:    &tagName,
-		Name:       &tagName,
-		Body:       &releaseNotes,
-		Draft:      &isDraft,
-	}
+// 	// tagName := FormatVersion(newVersion)
+// 	// isDraft := false
 
-	_, err := m.client.CreateReleaseFromSHA(repo.Repository, release, targetSHA)
-	if err != nil {
-		return fmt.Errorf("failed to create hotfix release: %w", err)
-	}
+// 	// if m.dryRun {
+// 	// 	m.logger.Info("[DRY RUN] Would create hotfix release %s for %s from SHA %s", tagName, repo.Repository, targetSHA)
+// 	// 	m.logger.Debug("[DRY RUN] Release notes:\n%s", releaseNotes)
+// 	// 	return nil
+// 	// }
 
-	m.logger.Info("Successfully created hotfix release %s for %s from SHA %s", tagName, repo.Repository, targetSHA)
-	return nil
-}
+// 	// release := &github.RepositoryRelease{
+// 	// 	TagName:    &tagName,
+// 	// 	Name:       &tagName,
+// 	// 	Body:       &releaseNotes,
+// 	// 	Draft:      &isDraft,
+// 	// }
+// 	return m.CreateRelease(ctx, repo, newVersion, releaseNotes, releaseType)
+
+// 	// m.CreateRelease(ctx context.Context, repo *ReleaseRepository, newVersion *semver.Version, releaseNotes string, releaseType Type)
+// 	// _, err := m.client.CreateReleaseFromSHA(repo.Repository, release, targetSHA)
+// 	// if err != nil {
+// 	// 	return fmt.Errorf("failed to create hotfix release with tag %s: error: %w", tagName, err)
+// 	// }
+
+// 	m.logger.Info("Successfully created hotfix release %s for %s from SHA %s", tagName, repo.Repository, targetSHA)
+// 	return nil
+// }
 
 
 func (m *Manager) ProcessRelease(ctx context.Context, repo *ReleaseRepository, releaseType Type, 
@@ -376,7 +392,7 @@ func (m *Manager) ProcessReleaseInteractiveWithEntries(ctx context.Context, repo
 
 	// Interactive prompt for version bump
 	repoDisplayName := repo.GetDisplayName()
-	newVersion, bumpType, hotfixInfo, err := PromptForVersionBump(repoDisplayName, repo.LatestRelease, entries)
+	newVersion, bumpType, err := PromptForVersionBump(repoDisplayName, repo.LatestRelease, entries)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get version bump choice: %w", err)
 	}
@@ -389,16 +405,6 @@ func (m *Manager) ProcessReleaseInteractiveWithEntries(ctx context.Context, repo
 			Version:    repo.LatestRelease,
 			Changelog:  entries,
 		}, nil
-	}
-
-	// If this is a hotfix, regenerate the changelog based on the hotfix SHA
-	if bumpType == BumpHotfix && hotfixInfo != nil {
-		m.logger.Info("Regenerating changelog for hotfix from SHA: %s", hotfixInfo.SHA)
-		entries, err = m.GenerateChangelogFromSHA(ctx, repo, hotfixInfo.SHA)
-		if err != nil {
-			m.logger.Warn("Failed to generate hotfix changelog for %s: %v", repo.Repository, err)
-			m.logger.Info("Using previously generated changelog")
-		}
 	}
 
 	var crossLinks []CrossLink
@@ -437,16 +443,9 @@ func (m *Manager) ProcessReleaseInteractiveWithEntries(ctx context.Context, repo
 		releaseNotes = builder.String()
 	}
 
-	// Create the appropriate type of release
-	if bumpType == BumpHotfix && hotfixInfo != nil {
-		m.logger.Info("Creating hotfix release for %s: %s (SHA: %s)", repoDisplayName, FormatVersion(newVersion), hotfixInfo.SHA)
-		if err := m.CreateHotfixRelease(ctx, repo, newVersion, releaseNotes, releaseType, hotfixInfo.SHA); err != nil {
-			return nil, err
-		}
-	} else {
-		if err := m.CreateRelease(ctx, repo, newVersion, releaseNotes, releaseType); err != nil {
-			return nil, err
-		}
+	// Create the release
+	if err := m.CreateRelease(ctx, repo, newVersion, releaseNotes, releaseType); err != nil {
+		return nil, err
 	}
 
 	return &Release{
@@ -456,155 +455,12 @@ func (m *Manager) ProcessReleaseInteractiveWithEntries(ctx context.Context, repo
 	}, nil
 }
 
-func (m *Manager) GenerateProposedRelease(ctx context.Context, repo *ReleaseRepository) (*ProposedRelease, error) {
-	if err := m.ResolveVersions(ctx, repo); err != nil {
-		return nil, fmt.Errorf("failed to resolve versions: %w", err)
-	}
 
-	hasChanges, err := m.HasChanges(ctx, repo)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check for changes: %w", err)
-	}
 
-	proposed := &ProposedRelease{
-		Repository: repo,
-		HasChanges: hasChanges,
-		BumpType:   "", // No default bump type - will be determined interactively
-		Changelog:  []Entry{},
-	}
-
-	if !hasChanges {
-		proposed.ProposedVersion = repo.LatestRelease
-		return proposed, nil
-	}
-
-	// Generate changelog to show what would be released
-	entries, err := m.GenerateChangelog(ctx, repo)
-	if err != nil {
-		m.logger.Warn("Failed to generate changelog for %s: %v", repo.Repository, err)
-		entries = []Entry{} // Use empty changelog on error
-	}
-
-	proposed.Changelog = entries
-	// Don't suggest a version - let the interactive prompt decide
-	proposed.ProposedVersion = nil
-	
-	return proposed, nil
-}
-
-func (m *Manager) ProcessSelectedReleases(ctx context.Context, selectedRepos []*ReleaseRepository, releaseType Type, allRepos []*ReleaseRepository) ([]*Release, error) {
-	var releases []*Release
-	
-	// Create a map of selected repos for quick lookup
-	selectedMap := make(map[*ReleaseRepository]bool)
-	for _, repo := range selectedRepos {
-		selectedMap[repo] = true
-	}
-
-	for _, repo := range selectedRepos {
-		m.logger.Info("Processing release for %s", repo.Repository)
-		
-		// Generate changelog
-		entries, err := m.GenerateChangelog(ctx, repo)
-		if err != nil {
-			m.logger.Warn("Failed to generate changelog for %s: %v", repo.Repository, err)
-			entries = []Entry{}
-		}
-
-		// Interactive prompt for version bump instead of defaulting to patch
-		repoDisplayName := repo.GetDisplayName()
-		newVersion, bumpType, hotfixInfo, err := PromptForVersionBump(repoDisplayName, repo.LatestRelease, entries)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get version bump choice for %s: %w", repoDisplayName, err)
-		}
-
-		// If user chose to skip release for this repo
-		if bumpType == "skip" {
-			m.logger.Info("Skipping release for %s", repoDisplayName)
-			continue
-		}
-
-		// If this is a hotfix, regenerate the changelog based on the hotfix SHA
-		if bumpType == BumpHotfix && hotfixInfo != nil {
-			m.logger.Info("Regenerating changelog for hotfix from SHA: %s", hotfixInfo.SHA)
-			entries, err = m.GenerateChangelogFromSHA(ctx, repo, hotfixInfo.SHA)
-			if err != nil {
-				m.logger.Warn("Failed to generate hotfix changelog for %s: %v", repo.Repository, err)
-				m.logger.Info("Using previously generated changelog")
-			}
-		}
-
-		// Generate crossLinks only for selected repositories
-		var crossLinks []CrossLink
-		if repo.CrossLinkEnabled {
-			crossLinks = m.generateCrossLinksForSelected(repo, selectedRepos, newVersion)
-		}
-
-		// Ask if user wants to edit changelog
-		var releaseNotes string
-		var builder strings.Builder
-		builder.WriteString(BuildCrossLinksString(crossLinks))
-
-		if len(entries) > 0 || len(crossLinks) > 0 {
-			wantEdit, err := PromptToEditChangelog()
-			if err != nil {
-				m.logger.Warn("Failed to prompt for changelog editing: %v", err)
-				if len(entries) > 0 {
-					builder.WriteString(BuildEntriesTableString(entries, repo.JiraEnabled, m.jiraOrgId))
-				}
-				releaseNotes = builder.String()
-			} else if wantEdit {
-				m.logger.Info("Opening changelog for editing...")
-				editedText, err := EditChangelog(entries, crossLinks, repo.JiraEnabled, m.jiraOrgId)
-				if err != nil {
-					m.logger.Warn("Failed to edit changelog: %v", err)
-					m.logger.Info("Using original changelog")
-					if len(entries) > 0 {
-						builder.WriteString(BuildEntriesTableString(entries, repo.JiraEnabled, m.jiraOrgId))
-					}
-					releaseNotes = builder.String()
-				} else {
-					releaseNotes = editedText
-					m.logger.Info("Using edited changelog")
-				}
-			} else {
-				if len(entries) > 0 {
-					builder.WriteString(BuildEntriesTableString(entries, repo.JiraEnabled, m.jiraOrgId))
-				}
-				releaseNotes = builder.String()
-			}
-		} else {
-			releaseNotes = builder.String()
-		}
-
-		// Create the appropriate type of release
-		if bumpType == BumpHotfix && hotfixInfo != nil {
-			m.logger.Info("Creating hotfix release for %s: %s (SHA: %s)", repoDisplayName, FormatVersion(newVersion), hotfixInfo.SHA)
-			if err := m.CreateHotfixRelease(ctx, repo, newVersion, releaseNotes, releaseType, hotfixInfo.SHA); err != nil {
-				m.logger.Error("Failed to create hotfix release for %s: %v", repo.Repository, err)
-				continue
-			}
-		} else {
-			if err := m.CreateRelease(ctx, repo, newVersion, releaseNotes, releaseType); err != nil {
-				m.logger.Error("Failed to create release for %s: %v", repo.Repository, err)
-				continue
-			}
-		}
-
-		releases = append(releases, &Release{
-			Repository: repo,
-			Version:    newVersion,
-			Changelog:  entries,
-		})
-	}
-
-	return releases, nil
-}
-
-func (m *Manager) generateCrossLinks(currentRepo *ReleaseRepository, allRepos []*ReleaseRepository, currentVersion *semver.Version) []CrossLink {
+func (m *Manager) generateCrossLinks(currentRepo *ReleaseRepository, repos []*ReleaseRepository, currentVersion *semver.Version) []CrossLink {
 	var links []CrossLink
 
-	for _, repo := range allRepos {
+	for _, repo := range repos {
 		// Skip the current repository - don't include it in its own cross-links
 		if repo == currentRepo {
 			continue
@@ -617,12 +473,15 @@ func (m *Manager) generateCrossLinks(currentRepo *ReleaseRepository, allRepos []
 			repoName = repo.Name
 		}
 
+		// Use the latest release version for cross-links
+		version := repo.LatestRelease
+
 		releaseURL := fmt.Sprintf("https://github.com/%s/%s/releases/tag/v%s",
-			repo.Owner, repo.Name, repo.LatestRelease.String())
+			repo.Owner, repo.Name, version.String())
 
 		links = append(links, CrossLink{
 			Name:    repoName,
-			Version: repo.LatestRelease.String(),
+			Version: version.String(),
 			URL:     releaseURL,
 		})
 	}
@@ -630,35 +489,3 @@ func (m *Manager) generateCrossLinks(currentRepo *ReleaseRepository, allRepos []
 	return links
 }
 
-func (m *Manager) generateCrossLinksForSelected(currentRepo *ReleaseRepository, selectedRepos []*ReleaseRepository, currentVersion *semver.Version) []CrossLink {
-	var links []CrossLink
-
-	for _, repo := range selectedRepos {
-		// Skip the current repository - don't include it in its own cross-links
-		if repo == currentRepo {
-			continue
-		}
-
-		var repoName string
-		if repo.Alias != "" {
-			repoName = repo.Alias
-		} else {
-			repoName = repo.Name
-		}
-
-		// For selected repos, we'll use the new version that will be released
-		// For now, assume patch bump (this could be enhanced later)
-		newVersion := BumpVersion(repo.LatestRelease, BumpPatch)
-		
-		releaseURL := fmt.Sprintf("https://github.com/%s/%s/releases/tag/v%s",
-			repo.Owner, repo.Name, newVersion.String())
-
-		links = append(links, CrossLink{
-			Name:    repoName,
-			Version: newVersion.String(),
-			URL:     releaseURL,
-		})
-	}
-
-	return links
-}

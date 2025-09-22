@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 )
@@ -31,14 +30,14 @@ branches:
   org2/repo2: develop`
 
 	// Create temporary directory and config file
-	tmpDir, err := ioutil.TempDir("", "versionista_test")
+	tmpDir, err := os.MkdirTemp("", "versionista_test")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tmpDir)
 
 	configPath := tmpDir + "/.versionista.yml"
-	if err := ioutil.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"regexp"
@@ -26,7 +25,7 @@ type Generator struct {
 func NewGenerator(jiraBoards []string) *Generator {
 	var ticketMatcher *regexp.Regexp
 	if len(jiraBoards) > 0 {
-		pattern := fmt.Sprintf("(?i)\\b(%s)-\\d+\\b", strings.Join(jiraBoards, "|"))
+		pattern := fmt.Sprintf("(?i)\\b(%s)[-\\s]\\d+\\b", strings.Join(jiraBoards, "|"))
 		ticketMatcher = regexp.MustCompile(pattern)
 	}
 
@@ -46,9 +45,9 @@ func (g *Generator) ExtractTickets(text string) []string {
 
 func ParsePRNumber(commitMessage string) (int, error) {
 	patterns := []string{
-		`#(\d+)`,
-		`pull request #(\d+)`,
+		`\bpull request #(\d+)\b`,
 		`\(#(\d+)\)`,
+		`(?:^|\s)#(\d+)\b`,
 	}
 
 	for _, pattern := range patterns {
@@ -69,10 +68,11 @@ func BuildCrossLinksString(crossLinks []CrossLink) string {
 
 	var builder strings.Builder
 	builder.WriteString("## Related Releases\n\n")
+
 	for _, link := range crossLinks {
 		builder.WriteString(fmt.Sprintf("- [%s v%s](%s)\n", link.Name, link.Version, link.URL))
 	}
-	builder.WriteString("\n---\n\n")
+	builder.WriteString("\n------\n\n")
 	return builder.String()
 }
 
@@ -156,7 +156,7 @@ func removeDuplicates(input []string) []string {
 
 func EditChangelog(entries []Entry, crossLinks []CrossLink, jiraEnabled bool, jiraOrgId string) (string, error) {
 	// Create temporary file with current changelog
-	tmpfile, err := ioutil.TempFile("", "changelog-*.md")
+	tmpfile, err := os.CreateTemp("", "changelog-*.md")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp file: %w", err)
 	}
@@ -193,7 +193,7 @@ func EditChangelog(entries []Entry, crossLinks []CrossLink, jiraEnabled bool, ji
 	}
 
 	// Read the edited content and return as-is
-	editedContent, err := ioutil.ReadFile(tmpfile.Name())
+	editedContent, err := os.ReadFile(tmpfile.Name())
 	if err != nil {
 		return "", fmt.Errorf("failed to read edited file: %w", err)
 	}

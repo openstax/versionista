@@ -69,6 +69,39 @@ func (c *Config) GetBranch(repoSpec string) string {
 	return "main"
 }
 
+func (c *Config) GetProjectName(providedProject string, args []string) (string, error) {
+	// If project flag is provided, use it
+	if providedProject != "" {
+		if _, exists := c.Projects[providedProject]; !exists {
+			return "", fmt.Errorf("project '%s' not found in configuration", providedProject)
+		}
+		return providedProject, nil
+	}
+	
+	// If project name is provided as argument, use it
+	if len(args) > 0 {
+		projectName := args[0]
+		if _, exists := c.Projects[projectName]; !exists {
+			return "", fmt.Errorf("project '%s' not found in configuration", projectName)
+		}
+		return projectName, nil
+	}
+
+	// If no project name provided, check if there's only one project
+	if len(c.Projects) == 1 {
+		for projectName := range c.Projects {
+			return projectName, nil
+		}
+	}
+
+	// Multiple projects exist, require explicit specification
+	var projectNames []string
+	for name := range c.Projects {
+		projectNames = append(projectNames, name)
+	}
+	return "", fmt.Errorf("multiple projects found (%v), please specify one using --project flag or as argument", projectNames)
+}
+
 func (c *Config) Validate() error {
 	if c.GHToken == "" {
 		return fmt.Errorf("gh_token is required in configuration")

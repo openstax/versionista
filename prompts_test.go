@@ -34,8 +34,8 @@ func TestPromptFunctionsExist(t *testing.T) {
 	
 	// These functions would normally prompt for user input, so we can't call them in tests
 	// But we can verify they exist and have the correct signatures
-	var f1 func(string, *semver.Version, []Entry) (*semver.Version, BumpType, *HotfixInfo, error) = PromptForVersionBump
-	var f3 func(*semver.Version) (string, string, error) = PromptForHotfix
+	var f1 func(string, *semver.Version, []Entry) (*semver.Version, BumpType, error) = PromptForVersionBump
+	var f3 func(*semver.Version, string) (string, error) = PromptForHotfixSuffix
 	
 	_ = f1
 	_ = f3
