@@ -64,6 +64,20 @@ func (c *CLI) runWithSpinner(message string, fn func() error) error {
 	return err
 }
 
+func (c *CLI) resolveProjectAndRepos(ctx context.Context, providedProject string, args []string) (string, []*ReleaseRepository, error) {
+	projectName, err := c.config.GetProjectName(providedProject, args)
+	if err != nil {
+		return "", nil, err
+	}
+
+	repos, err := c.ProcessRepositories(ctx, projectName)
+	if err != nil {
+		return "", nil, err
+	}
+
+	return projectName, repos, nil
+}
+
 func (c *CLI) ProcessRepositories(ctx context.Context, repoSpec string) ([]*ReleaseRepository, error) {
 	repoConfigs, err := c.config.GetProjectRepos(repoSpec)
 	if err != nil {
@@ -110,14 +124,9 @@ func (c *CLI) ProcessRepositories(ctx context.Context, repoSpec string) ([]*Rele
 func (c *CLI) releaseCommand(args []string, providedProject string) {
 	ctx := context.Background()
 
-	projectName, err := c.config.GetProjectName(providedProject, args)
+	projectName, repos, err := c.resolveProjectAndRepos(ctx, providedProject, args)
 	if err != nil {
-		c.logger.FatalErr(err, "Failed to determine project")
-	}
-
-	repos, err := c.ProcessRepositories(ctx, projectName)
-	if err != nil {
-		c.logger.FatalErr(err, "Failed to process repositories")
+		c.logger.FatalErr(err, "Failed to resolve project and repositories")
 	}
 
 	releaseType := TypeRegular
@@ -158,14 +167,9 @@ func (c *CLI) releaseCommand(args []string, providedProject string) {
 func (c *CLI) reviewCommand(args []string, providedProject string) {
 	ctx := context.Background()
 
-	projectName, err := c.config.GetProjectName(providedProject, args)
+	projectName, repos, err := c.resolveProjectAndRepos(ctx, providedProject, args)
 	if err != nil {
-		c.logger.FatalErr(err, "Failed to determine project")
-	}
-
-	repos, err := c.ProcessRepositories(ctx, projectName)
-	if err != nil {
-		c.logger.FatalErr(err, "Failed to process repositories")
+		c.logger.FatalErr(err, "Failed to resolve project and repositories")
 	}
 
 	c.logger.Info("Latest versions for %s:", projectName)
@@ -182,16 +186,12 @@ func (c *CLI) reviewCommand(args []string, providedProject string) {
 func (c *CLI) hotfixCommand(args []string, providedProject string) {
 	ctx := context.Background()
 
-	projectName, err := c.config.GetProjectName(providedProject, args)
-	if err != nil {
-		c.logger.FatalErr(err, "Failed to determine project")
-	}
 	repositoryName := args[0]
 	sha := args[1]
-	
-	allRepos, err := c.ProcessRepositories(ctx, projectName)
+
+	projectName, allRepos, err := c.resolveProjectAndRepos(ctx, providedProject, args)
 	if err != nil {
-		c.logger.FatalErr(err, "Failed to process repository")
+		c.logger.FatalErr(err, "Failed to resolve project and repositories")
 	}
 	// Find the repository that matches repositoryName
 	var repo *ReleaseRepository
@@ -226,18 +226,13 @@ func (c *CLI) hotfixCommand(args []string, providedProject string) {
 	if err != nil {
 		c.logger.FatalErr(err, "Failed to generate changelog from SHA")
 	}
-	
+
 	// Build release notes
-	var builder strings.Builder
-	if len(entries) > 0 {
-		builder.WriteString(BuildEntriesTableString(entries, repo.JiraEnabled, c.config.JiraOrgId))
-	}
-	releaseNotes := builder.String()
-	
+	releaseNotes := BuildReleaseNotes(entries, nil, repo.JiraEnabled, c.config.JiraOrgId)
+
 	// Create the hotfix release
 	releaseType := TypeRegular
 	if err := c.manager.CreateRelease(ctx, repo, hotfixVersion, releaseNotes, releaseType); err != nil {
-		//if err := c.manager.CreateHotfixRelease(ctx, repo, hotfixVersion, releaseNotes, releaseType, sha); err != nil {
 		c.logger.FatalErr(err, "Failed to create hotfix release")
 	}
 	

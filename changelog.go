@@ -119,6 +119,15 @@ func BuildEntriesTableString(entries []Entry, jiraEnabled bool, jiraOrgId string
 	return builder.String()
 }
 
+func BuildReleaseNotes(entries []Entry, crossLinks []CrossLink, jiraEnabled bool, jiraOrgId string) string {
+	var builder strings.Builder
+	builder.WriteString(BuildCrossLinksString(crossLinks))
+	if len(entries) > 0 {
+		builder.WriteString(BuildEntriesTableString(entries, jiraEnabled, jiraOrgId))
+	}
+	return builder.String()
+}
+
 
 type CrossLink struct {
 	Name    string
@@ -163,12 +172,7 @@ func EditChangelog(entries []Entry, crossLinks []CrossLink, jiraEnabled bool, ji
 	defer os.Remove(tmpfile.Name())
 
 	// Write current changelog in final release notes format to temp file
-	var builder strings.Builder
-	builder.WriteString(BuildCrossLinksString(crossLinks))
-	if len(entries) > 0 {
-		builder.WriteString(BuildEntriesTableString(entries, jiraEnabled, jiraOrgId))
-	}
-	changelogText := builder.String()
+	changelogText := BuildReleaseNotes(entries, crossLinks, jiraEnabled, jiraOrgId)
 	if _, err := tmpfile.Write([]byte(changelogText)); err != nil {
 		return "", fmt.Errorf("failed to write to temp file: %w", err)
 	}

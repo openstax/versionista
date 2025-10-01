@@ -253,48 +253,12 @@ func (m *Manager) CreateRelease(ctx context.Context, repo *ReleaseRepository, ne
 	return nil
 }
 
-func (m *Manager) CreateReleaseFromEntries(ctx context.Context, repo *ReleaseRepository, newVersion *semver.Version, 
+func (m *Manager) CreateReleaseFromEntries(ctx context.Context, repo *ReleaseRepository, newVersion *semver.Version,
 	entries []Entry, crossLinks []CrossLink, releaseType Type) error {
-	
-	var builder strings.Builder
-	builder.WriteString(BuildCrossLinksString(crossLinks))
-	if len(entries) > 0 {
-		builder.WriteString(BuildEntriesTableString(entries, repo.JiraEnabled, m.jiraOrgId))
-	}
-	releaseNotes := builder.String()
+
+	releaseNotes := BuildReleaseNotes(entries, crossLinks, repo.JiraEnabled, m.jiraOrgId)
 	return m.CreateRelease(ctx, repo, newVersion, releaseNotes, releaseType)
 }
-
-// func (m *Manager) CreateHotfixRelease(ctx context.Context, repo *ReleaseRepository, newVersion *semver.Version,
-// 	releaseNotes string, releaseType Type, targetSHA string) error {
-
-// 	// tagName := FormatVersion(newVersion)
-// 	// isDraft := false
-
-// 	// if m.dryRun {
-// 	// 	m.logger.Info("[DRY RUN] Would create hotfix release %s for %s from SHA %s", tagName, repo.Repository, targetSHA)
-// 	// 	m.logger.Debug("[DRY RUN] Release notes:\n%s", releaseNotes)
-// 	// 	return nil
-// 	// }
-
-// 	// release := &github.RepositoryRelease{
-// 	// 	TagName:    &tagName,
-// 	// 	Name:       &tagName,
-// 	// 	Body:       &releaseNotes,
-// 	// 	Draft:      &isDraft,
-// 	// }
-// 	return m.CreateRelease(ctx, repo, newVersion, releaseNotes, releaseType)
-
-// 	// m.CreateRelease(ctx context.Context, repo *ReleaseRepository, newVersion *semver.Version, releaseNotes string, releaseType Type)
-// 	// _, err := m.client.CreateReleaseFromSHA(repo.Repository, release, targetSHA)
-// 	// if err != nil {
-// 	// 	return fmt.Errorf("failed to create hotfix release with tag %s: error: %w", tagName, err)
-// 	// }
-
-// 	m.logger.Info("Successfully created hotfix release %s for %s from SHA %s", tagName, repo.Repository, targetSHA)
-// 	return nil
-// }
-
 
 func (m *Manager) ProcessRelease(ctx context.Context, repo *ReleaseRepository, releaseType Type, 
 	bumpType BumpType, allRepos []*ReleaseRepository) (*Release, error) {
@@ -414,33 +378,28 @@ func (m *Manager) ProcessReleaseInteractiveWithEntries(ctx context.Context, repo
 
 	// Ask if user wants to edit changelog
 	var releaseNotes string
-	var builder strings.Builder
-	builder.WriteString(BuildCrossLinksString(crossLinks))
 
 	if len(entries) > 0 {
 		wantEdit, err := PromptToEditChangelog()
 		if err != nil {
 			m.logger.Warn("Failed to prompt for changelog editing: %v", err)
-			builder.WriteString(BuildEntriesTableString(entries, repo.JiraEnabled, m.jiraOrgId))
-			releaseNotes = builder.String()
+			releaseNotes = BuildReleaseNotes(entries, crossLinks, repo.JiraEnabled, m.jiraOrgId)
 		} else if wantEdit {
 			m.logger.Info("Opening changelog for editing...")
 			editedText, err := EditChangelog(entries, crossLinks, repo.JiraEnabled, m.jiraOrgId)
 			if err != nil {
 				m.logger.Warn("Failed to edit changelog: %v", err)
 				m.logger.Info("Using original changelog")
-				builder.WriteString(BuildEntriesTableString(entries, repo.JiraEnabled, m.jiraOrgId))
-				releaseNotes = builder.String()
+				releaseNotes = BuildReleaseNotes(entries, crossLinks, repo.JiraEnabled, m.jiraOrgId)
 			} else {
 				releaseNotes = editedText
 				m.logger.Info("Using edited changelog")
 			}
 		} else {
-			builder.WriteString(BuildEntriesTableString(entries, repo.JiraEnabled, m.jiraOrgId))
-			releaseNotes = builder.String()
+			releaseNotes = BuildReleaseNotes(entries, crossLinks, repo.JiraEnabled, m.jiraOrgId)
 		}
 	} else {
-		releaseNotes = builder.String()
+		releaseNotes = BuildReleaseNotes(entries, crossLinks, repo.JiraEnabled, m.jiraOrgId)
 	}
 
 	// Create the release
@@ -466,13 +425,6 @@ func (m *Manager) generateCrossLinks(currentRepo *ReleaseRepository, repos []*Re
 			continue
 		}
 
-		var repoName string
-		if repo.Alias != "" {
-			repoName = repo.Alias
-		} else {
-			repoName = repo.Name
-		}
-
 		// Use the latest release version for cross-links
 		version := repo.LatestRelease
 
@@ -480,7 +432,7 @@ func (m *Manager) generateCrossLinks(currentRepo *ReleaseRepository, repos []*Re
 			repo.Owner, repo.Name, version.String())
 
 		links = append(links, CrossLink{
-			Name:    repoName,
+			Name:    repo.GetDisplayName(),
 			Version: version.String(),
 			URL:     releaseURL,
 		})

@@ -69,20 +69,27 @@ func (c *Config) GetBranch(repoSpec string) string {
 	return "main"
 }
 
+func (c *Config) validateProjectExists(projectName string) error {
+	if _, exists := c.Projects[projectName]; !exists {
+		return fmt.Errorf("project '%s' not found in configuration", projectName)
+	}
+	return nil
+}
+
 func (c *Config) GetProjectName(providedProject string, args []string) (string, error) {
 	// If project flag is provided, use it
 	if providedProject != "" {
-		if _, exists := c.Projects[providedProject]; !exists {
-			return "", fmt.Errorf("project '%s' not found in configuration", providedProject)
+		if err := c.validateProjectExists(providedProject); err != nil {
+			return "", err
 		}
 		return providedProject, nil
 	}
-	
+
 	// If project name is provided as argument, use it
 	if len(args) > 0 {
 		projectName := args[0]
-		if _, exists := c.Projects[projectName]; !exists {
-			return "", fmt.Errorf("project '%s' not found in configuration", projectName)
+		if err := c.validateProjectExists(projectName); err != nil {
+			return "", err
 		}
 		return projectName, nil
 	}
