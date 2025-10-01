@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/google/go-github/v28/github"
 	"golang.org/x/oauth2"
@@ -81,48 +80,6 @@ func (c *Client) GetPullRequest(repo *Repository, number int) (*github.PullReque
 	return pr, nil
 }
 
-func (c *Client) GetRecentMergedPRs(repo *Repository, since time.Time) ([]*github.PullRequest, error) {
-	opts := &github.PullRequestListOptions{
-		State:     "closed",
-		Sort:      "updated",
-		Direction: "desc",
-		ListOptions: github.ListOptions{
-			Page:    1,
-			PerPage: 100,
-		},
-	}
-
-	var allPRs []*github.PullRequest
-	
-	for {
-		prs, resp, err := c.PullRequests.List(c.ctx, repo.Owner, repo.Name, opts)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get pull requests for %s: %w", repo, err)
-		}
-
-		for _, pr := range prs {
-			// Only include merged PRs
-			if pr.GetMergedAt().IsZero() {
-				continue
-			}
-			
-			// Stop if we've gone past our since date
-			if pr.GetMergedAt().Before(since) {
-				return allPRs, nil
-			}
-			
-			allPRs = append(allPRs, pr)
-		}
-
-		if resp.NextPage == 0 {
-			break
-		}
-		opts.Page = resp.NextPage
-	}
-
-	return allPRs, nil
-}
-
 func (c *Client) CreateRelease(repo *Repository, release *github.RepositoryRelease) (*github.RepositoryRelease, error) {
 	createdRelease, _, err := c.Repositories.CreateRelease(c.ctx, repo.Owner, repo.Name, release)
 	if err != nil {
@@ -131,27 +88,25 @@ func (c *Client) CreateRelease(repo *Repository, release *github.RepositoryRelea
 	return createdRelease, nil
 }
 
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func (c *Client) GetLastNMergedPRs(repo *Repository, count int) ([]*github.PullRequest, error) {
+	perPage := count
+	if perPage > 100 {
+		perPage = 100 // GitHub API limit is 100 per page
+	}
+
 	opts := &github.PullRequestListOptions{
 		State:     "closed",
 		Sort:      "updated",
 		Direction: "desc",
 		ListOptions: github.ListOptions{
 			Page:    1,
-			PerPage: minInt(count, 100), // GitHub API limit is 100 per page
+			PerPage: perPage,
 		},
 	}
 
 	var allPRs []*github.PullRequest
 	needed := count
-	
+
 	for needed > 0 {
 		prs, resp, err := c.PullRequests.List(c.ctx, repo.Owner, repo.Name, opts)
 		if err != nil {
@@ -163,10 +118,10 @@ func (c *Client) GetLastNMergedPRs(repo *Repository, count int) ([]*github.PullR
 			if pr.GetMergedAt().IsZero() {
 				continue
 			}
-			
+
 			allPRs = append(allPRs, pr)
 			needed--
-			
+
 			if needed == 0 {
 				return allPRs, nil
 			}
@@ -177,7 +132,11 @@ func (c *Client) GetLastNMergedPRs(repo *Repository, count int) ([]*github.PullR
 		}
 		opts.Page = resp.NextPage
 		// Update PerPage for remaining items
-		opts.PerPage = minInt(needed, 100)
+		if needed < 100 {
+			opts.PerPage = needed
+		} else {
+			opts.PerPage = 100
+		}
 	}
 
 	return allPRs, nil
