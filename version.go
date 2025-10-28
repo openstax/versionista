@@ -57,18 +57,26 @@ func FormatVersion(v *semver.Version) string {
 }
 
 func CreateHotfixVersion(baseVersion *semver.Version, suffix string) (*semver.Version, error) {
-	// Create hotfix version by adding suffix as prerelease
-	// For example: v1.2.3 + "fix1" -> v1.2.3+fix1
-	hotfixStr := fmt.Sprintf("%s+%s", baseVersion.String(), suffix)
+	// Create hotfix version by adding suffix as metadata
+	// Remove existing metadata if present before adding new suffix
+	// For example: v1.2.3+oldfix -> v1.2.3+newfix (not v1.2.3+oldfix+newfix)
 
-	// FIXME: remove existing suffix if present in  version before adding new suffix
-	// ie. v1.2.3+oldfix -> v1.2.3+newfix
-	// not v1.2.3+oldfix+newfix
+	// Build base version string without metadata
+	versionStr := fmt.Sprintf("%d.%d.%d", baseVersion.Major(), baseVersion.Minor(), baseVersion.Patch())
+
+	// Include prerelease if present
+	if baseVersion.Prerelease() != "" {
+		versionStr = fmt.Sprintf("%s-%s", versionStr, baseVersion.Prerelease())
+	}
+
+	// Add new metadata suffix
+	hotfixStr := fmt.Sprintf("%s+%s", versionStr, suffix)
+
 	hotfixVersion, err := semver.NewVersion(hotfixStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create hotfix version %s: %w", hotfixStr, err)
 	}
-	
+
 	return hotfixVersion, nil
 }
 

@@ -184,6 +184,34 @@ func TestCreateHotfixVersion(t *testing.T) {
 			expected:    "2.1.0+123",
 			expectError: false,
 		},
+		{
+			name:        "replace existing metadata",
+			baseVersion: "1.2.3+oldfix",
+			suffix:      "newfix",
+			expected:    "1.2.3+newfix",
+			expectError: false,
+		},
+		{
+			name:        "replace metadata with different suffix",
+			baseVersion: "2.0.0+build123",
+			suffix:      "hotfix456",
+			expected:    "2.0.0+hotfix456",
+			expectError: false,
+		},
+		{
+			name:        "version with prerelease and no metadata",
+			baseVersion: "1.2.3-rc1",
+			suffix:      "fix1",
+			expected:    "1.2.3-rc1+fix1",
+			expectError: false,
+		},
+		{
+			name:        "version with prerelease and existing metadata",
+			baseVersion: "1.2.3-rc1+oldfix",
+			suffix:      "newfix",
+			expected:    "1.2.3-rc1+newfix",
+			expectError: false,
+		},
 	}
 
 	for _, tt := range tests {
