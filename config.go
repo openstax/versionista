@@ -70,8 +70,15 @@ func (c *Config) GetBranch(repoSpec string) string {
 }
 
 func (c *Config) validateProjectExists(projectName string) error {
+
+	fmt.Printf("PROJECTS: %+v\n", c.Projects)
+
 	if _, exists := c.Projects[projectName]; !exists {
-		return fmt.Errorf("project '%s' not found in configuration", projectName)
+		var validProjects []string
+		for name := range c.Projects {
+			validProjects = append(validProjects, name)
+		}
+		return fmt.Errorf("project '%s' not found in configuration. Valid projects: %v", projectName, validProjects)
 	}
 	return nil
 }

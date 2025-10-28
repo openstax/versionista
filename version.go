@@ -60,7 +60,10 @@ func CreateHotfixVersion(baseVersion *semver.Version, suffix string) (*semver.Ve
 	// Create hotfix version by adding suffix as prerelease
 	// For example: v1.2.3 + "fix1" -> v1.2.3+fix1
 	hotfixStr := fmt.Sprintf("%s+%s", baseVersion.String(), suffix)
-	
+
+	// FIXME: remove existing suffix if present in  version before adding new suffix
+	// ie. v1.2.3+oldfix -> v1.2.3+newfix
+	// not v1.2.3+oldfix+newfix
 	hotfixVersion, err := semver.NewVersion(hotfixStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create hotfix version %s: %w", hotfixStr, err)

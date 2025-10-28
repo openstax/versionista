@@ -189,7 +189,8 @@ func (c *CLI) hotfixCommand(args []string, providedProject string) {
 	repositoryName := args[0]
 	sha := args[1]
 
-	projectName, allRepos, err := c.resolveProjectAndRepos(ctx, providedProject, args)
+	// Don't pass args to resolveProjectAndRepos since args[0] is the repository name, not the project name
+	projectName, allRepos, err := c.resolveProjectAndRepos(ctx, providedProject, nil)
 	if err != nil {
 		c.logger.FatalErr(err, "Failed to resolve project and repositories")
 	}
