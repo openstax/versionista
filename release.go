@@ -225,9 +225,9 @@ func (m *Manager) extractTicketsFromPR(repo *ReleaseRepository, pr *github.PullR
 	return removeDuplicates(tickets)
 }
 
-func (m *Manager) CreateRelease(ctx context.Context, repo *ReleaseRepository, newVersion *semver.Version, 
+func (m *Manager) CreateRelease(ctx context.Context, repo *ReleaseRepository, newVersion *semver.Version,
 	releaseNotes string, releaseType Type) error {
-	
+
 	tagName := FormatVersion(newVersion)
 	isDraft := false
 
@@ -250,6 +250,34 @@ func (m *Manager) CreateRelease(ctx context.Context, repo *ReleaseRepository, ne
 	}
 
 	m.logger.Info("Successfully created release %s for %s", tagName, repo.Repository)
+	return nil
+}
+
+func (m *Manager) CreateReleaseFromSHA(ctx context.Context, repo *ReleaseRepository, newVersion *semver.Version,
+	releaseNotes string, releaseType Type, targetSHA string) error {
+
+	tagName := FormatVersion(newVersion)
+	isDraft := false
+
+	if m.dryRun {
+		m.logger.Info("[DRY RUN] Would create release %s for %s from SHA %s", tagName, repo.Repository, targetSHA)
+		m.logger.Debug("[DRY RUN] Release notes:\n%s", releaseNotes)
+		return nil
+	}
+
+	release := &github.RepositoryRelease{
+		TagName:    &tagName,
+		Name:       &tagName,
+		Body:       &releaseNotes,
+		Draft:      &isDraft,
+	}
+
+	_, err := m.client.CreateReleaseFromSHA(repo.Repository, release, targetSHA)
+	if err != nil {
+		return fmt.Errorf("failed to create release from SHA %s: %w", targetSHA, err)
+	}
+
+	m.logger.Info("Successfully created release %s for %s from SHA %s", tagName, repo.Repository, targetSHA)
 	return nil
 }
 

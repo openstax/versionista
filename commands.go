@@ -231,12 +231,12 @@ func (c *CLI) hotfixCommand(args []string, providedProject string) {
 	// Build release notes
 	releaseNotes := BuildReleaseNotes(entries, nil, repo.JiraEnabled, c.config.JiraOrgId)
 
-	// Create the hotfix release
+	// Create the hotfix release from the specific SHA
 	releaseType := TypeRegular
-	if err := c.manager.CreateRelease(ctx, repo, hotfixVersion, releaseNotes, releaseType); err != nil {
+	if err := c.manager.CreateReleaseFromSHA(ctx, repo, hotfixVersion, releaseNotes, releaseType, sha); err != nil {
 		c.logger.FatalErr(err, "Failed to create hotfix release")
 	}
-	
+
 	c.logger.Info("Hotfix release completed for %s: %s", repo.Repository, FormatVersion(hotfixVersion))
 }
 
