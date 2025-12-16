@@ -265,35 +265,33 @@ func (m *Manager) CreateReleaseFromEntries(ctx context.Context, repo *ReleaseRep
 	return m.CreateRelease(ctx, repo, newVersion, releaseNotes, releaseType)
 }
 
-// func (m *Manager) CreateHotfixRelease(ctx context.Context, repo *ReleaseRepository, newVersion *semver.Version,
-// 	releaseNotes string, releaseType Type, targetSHA string) error {
+func (m *Manager) CreateHotfixRelease(ctx context.Context, repo *ReleaseRepository, newVersion *semver.Version,
+	releaseNotes string, targetSHA string) error {
 
-// 	// tagName := FormatVersion(newVersion)
-// 	// isDraft := false
+	tagName := FormatVersion(newVersion)
+	isDraft := false
 
-// 	// if m.dryRun {
-// 	// 	m.logger.Info("[DRY RUN] Would create hotfix release %s for %s from SHA %s", tagName, repo.Repository, targetSHA)
-// 	// 	m.logger.Debug("[DRY RUN] Release notes:\n%s", releaseNotes)
-// 	// 	return nil
-// 	// }
+	if m.dryRun {
+		m.logger.Info("[DRY RUN] Would create hotfix release %s for %s from SHA %s", tagName, repo.Repository, targetSHA)
+		m.logger.Debug("[DRY RUN] Release notes:\n%s", releaseNotes)
+		return nil
+	}
 
-// 	// release := &github.RepositoryRelease{
-// 	// 	TagName:    &tagName,
-// 	// 	Name:       &tagName,
-// 	// 	Body:       &releaseNotes,
-// 	// 	Draft:      &isDraft,
-// 	// }
-// 	return m.CreateRelease(ctx, repo, newVersion, releaseNotes, releaseType)
+	release := &github.RepositoryRelease{
+		TagName: &tagName,
+		Name:    &tagName,
+		Body:    &releaseNotes,
+		Draft:   &isDraft,
+	}
 
-// 	// m.CreateRelease(ctx context.Context, repo *ReleaseRepository, newVersion *semver.Version, releaseNotes string, releaseType Type)
-// 	// _, err := m.client.CreateReleaseFromSHA(repo.Repository, release, targetSHA)
-// 	// if err != nil {
-// 	// 	return fmt.Errorf("failed to create hotfix release with tag %s: error: %w", tagName, err)
-// 	// }
+	_, err := m.client.CreateReleaseFromSHA(repo.Repository, release, targetSHA)
+	if err != nil {
+		return fmt.Errorf("failed to create hotfix release: %w", err)
+	}
 
-// 	m.logger.Info("Successfully created hotfix release %s for %s from SHA %s", tagName, repo.Repository, targetSHA)
-// 	return nil
-// }
+	m.logger.Info("Successfully created hotfix release %s for %s from SHA %s", tagName, repo.Repository, targetSHA)
+	return nil
+}
 
 
 func (m *Manager) ProcessRelease(ctx context.Context, repo *ReleaseRepository, releaseType Type, 

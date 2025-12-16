@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -67,6 +68,36 @@ func (c *Config) GetBranch(repoSpec string) string {
 		return branch
 	}
 	return "main"
+}
+
+// FindProjectByRepository returns the project name that contains the given repository.
+// The repoName can be either the short name (e.g., "my-repo") or the full name (e.g., "owner/my-repo").
+func (c *Config) FindProjectByRepository(repoName string) (string, error) {
+	var matchingProjects []string
+
+	for projectName, repos := range c.Projects {
+		for _, repo := range repos {
+			// Check if it matches the full repo spec or just the repo name part
+			if repo.Repo == repoName {
+				matchingProjects = append(matchingProjects, projectName)
+				break
+			}
+			// Extract just the repo name from "owner/repo" format
+			parts := strings.Split(repo.Repo, "/")
+			if len(parts) == 2 && parts[1] == repoName {
+				matchingProjects = append(matchingProjects, projectName)
+				break
+			}
+		}
+	}
+
+	if len(matchingProjects) == 0 {
+		return "", fmt.Errorf("repository '%s' not found in any project", repoName)
+	}
+	if len(matchingProjects) > 1 {
+		return "", fmt.Errorf("repository '%s' found in multiple projects (%v), please specify one using --project flag", repoName, matchingProjects)
+	}
+	return matchingProjects[0], nil
 }
 
 func (c *Config) GetProjectName(providedProject string, args []string) (string, error) {

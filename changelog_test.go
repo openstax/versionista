@@ -335,7 +335,7 @@ func TestBuildEntriesTableString(t *testing.T) {
 			Author:      "testuser",
 			Title:       "Fix important bug",
 			Description: "This fixes a critical issue",
-			Tickets:     []string{"TEST-456"},
+			Tickets:     []string{"test-456"},
 		},
 		{
 			Number:      124,
@@ -352,14 +352,15 @@ func TestBuildEntriesTableString(t *testing.T) {
 	if !strings.Contains(result, "| PR # | Author | Title | Merged Date | Ticket # |") {
 		t.Error("Expected table header in release notes")
 	}
+	// Ticket should be normalized to uppercase
 	if !strings.Contains(result, "| #123 | testuser | <details><summary>Fix important bug</summary><br>This fixes a critical issue</details> | 2023-01-01 | [TEST-456](https://my-org.atlassian.net/browse/TEST-456) |") {
-		t.Error("Expected PR #123 in table format with details/summary tags")
+		t.Error("Expected PR #123 in table format with details/summary tags and normalized ticket")
 	}
 	if !strings.Contains(result, "| #124 | anotheruser | Add new feature | 2023-01-02 |  |") {
 		t.Error("Expected PR #124 in table format (no description, so no details tags)")
 	}
 	if !strings.Contains(result, "[TEST-456](https://my-org.atlassian.net/browse/TEST-456)") {
-		t.Error("Expected ticket reference")
+		t.Error("Expected normalized ticket reference")
 	}
 }
 
@@ -445,6 +446,101 @@ func TestRemoveDuplicates(t *testing.T) {
 		if i >= len(result) || result[i] != expectedItem {
 			t.Errorf("Expected item %s at index %d, got: %v", expectedItem, i, result)
 		}
+	}
+}
+
+func TestNormalizeTicket(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "space separator to hyphen",
+			input:    "Otter 35",
+			expected: "OTTER-35",
+		},
+		{
+			name:     "lowercase space separator",
+			input:    "otter 35",
+			expected: "OTTER-35",
+		},
+		{
+			name:     "already normalized",
+			input:    "OTTER-35",
+			expected: "OTTER-35",
+		},
+		{
+			name:     "lowercase with hyphen",
+			input:    "otter-35",
+			expected: "OTTER-35",
+		},
+		{
+			name:     "mixed case with space",
+			input:    "OtTeR 35",
+			expected: "OTTER-35",
+		},
+		{
+			name:     "mixed case with hyphen",
+			input:    "OtTeR-35",
+			expected: "OTTER-35",
+		},
+		{
+			name:     "TEST board with space",
+			input:    "TEST 123",
+			expected: "TEST-123",
+		},
+		{
+			name:     "multiple spaces",
+			input:    "OTTER  35",
+			expected: "OTTER--35",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizeTicket(tt.input)
+			if result != tt.expected {
+				t.Errorf("normalizeTicket(%q) = %q, expected %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestBuildEntriesTableStringWithNormalizedTickets(t *testing.T) {
+	entries := []Entry{
+		{
+			Number:      123,
+			Date:        "2023-01-01",
+			Author:      "testuser",
+			Title:       "Fix bug",
+			Description: "",
+			Tickets:     []string{"Otter 35", "TEST 456"},
+		},
+		{
+			Number:      124,
+			Date:        "2023-01-02",
+			Author:      "anotheruser",
+			Title:       "Add feature",
+			Description: "",
+			Tickets:     []string{"otter-789", "test 123"},
+		},
+	}
+
+	result := BuildEntriesTableString(entries, true, "my-org")
+
+	// Check that tickets are normalized in both the display text and URLs
+	if !strings.Contains(result, "[OTTER-35](https://my-org.atlassian.net/browse/OTTER-35)") {
+		t.Error("Expected normalized ticket OTTER-35 in link for 'Otter 35'")
+	}
+	if !strings.Contains(result, "[TEST-456](https://my-org.atlassian.net/browse/TEST-456)") {
+		t.Error("Expected normalized ticket TEST-456 in link for 'TEST 456'")
+	}
+	if !strings.Contains(result, "[OTTER-789](https://my-org.atlassian.net/browse/OTTER-789)") {
+		t.Error("Expected normalized ticket OTTER-789 in link for 'otter-789'")
+	}
+	if !strings.Contains(result, "[TEST-123](https://my-org.atlassian.net/browse/TEST-123)") {
+		t.Error("Expected normalized ticket TEST-123 in link for 'test 123'")
 	}
 }
 

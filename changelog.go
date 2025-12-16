@@ -76,6 +76,13 @@ func BuildCrossLinksString(crossLinks []CrossLink) string {
 	return builder.String()
 }
 
+func normalizeTicket(ticket string) string {
+	// Convert to uppercase and replace spaces with hyphens
+	normalized := strings.ToUpper(ticket)
+	normalized = strings.ReplaceAll(normalized, " ", "-")
+	return normalized
+}
+
 func BuildEntriesTableString(entries []Entry, jiraEnabled bool, jiraOrgId string) string {
 	var builder strings.Builder
 
@@ -107,8 +114,9 @@ func BuildEntriesTableString(entries []Entry, jiraEnabled bool, jiraOrgId string
 		if jiraEnabled {
 			var ticketLinks []string
 			for _, ticket := range entry.Tickets {
-				url := fmt.Sprintf("https://%s.atlassian.net/browse/%s", jiraOrgId, ticket)
-				ticketLinks = append(ticketLinks, fmt.Sprintf("[%s](%s)", ticket, url))
+				normalizedTicket := normalizeTicket(ticket)
+				url := fmt.Sprintf("https://%s.atlassian.net/browse/%s", jiraOrgId, normalizedTicket)
+				ticketLinks = append(ticketLinks, fmt.Sprintf("[%s](%s)", normalizedTicket, url))
 			}
 			line += fmt.Sprintf(" %s |", strings.Join(ticketLinks, ", "))
 		}

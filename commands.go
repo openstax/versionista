@@ -182,12 +182,20 @@ func (c *CLI) reviewCommand(args []string, providedProject string) {
 func (c *CLI) hotfixCommand(args []string, providedProject string) {
 	ctx := context.Background()
 
-	projectName, err := c.config.GetProjectName(providedProject, args)
-	if err != nil {
-		c.logger.FatalErr(err, "Failed to determine project")
-	}
 	repositoryName := args[0]
 	sha := args[1]
+
+	// Determine project: use provided flag, or auto-detect from repository
+	var projectName string
+	var err error
+	if providedProject != "" {
+		projectName = providedProject
+	} else {
+		projectName, err = c.config.FindProjectByRepository(repositoryName)
+		if err != nil {
+			c.logger.FatalErr(err, "Failed to determine project")
+		}
+	}
 	
 	allRepos, err := c.ProcessRepositories(ctx, projectName)
 	if err != nil {
@@ -235,9 +243,7 @@ func (c *CLI) hotfixCommand(args []string, providedProject string) {
 	releaseNotes := builder.String()
 	
 	// Create the hotfix release
-	releaseType := TypeRegular
-	if err := c.manager.CreateRelease(ctx, repo, hotfixVersion, releaseNotes, releaseType); err != nil {
-		//if err := c.manager.CreateHotfixRelease(ctx, repo, hotfixVersion, releaseNotes, releaseType, sha); err != nil {
+	if err := c.manager.CreateHotfixRelease(ctx, repo, hotfixVersion, releaseNotes, sha); err != nil {
 		c.logger.FatalErr(err, "Failed to create hotfix release")
 	}
 	
