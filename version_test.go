@@ -184,6 +184,20 @@ func TestCreateHotfixVersion(t *testing.T) {
 			expected:    "2.1.0+123",
 			expectError: false,
 		},
+		{
+			name:        "hotfix on existing hotfix replaces suffix",
+			baseVersion: "1.3.0+a",
+			suffix:      "b",
+			expected:    "1.3.0+b",
+			expectError: false,
+		},
+		{
+			name:        "hotfix on version with prerelease",
+			baseVersion: "1.0.0-beta.1",
+			suffix:      "fix1",
+			expected:    "1.0.0-beta.1+fix1",
+			expectError: false,
+		},
 	}
 
 	for _, tt := range tests {
