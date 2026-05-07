@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -162,49 +160,3 @@ func removeDuplicates(input []string) []string {
 	return result
 }
 
-func EditChangelog(entries []Entry, crossLinks []CrossLink, jiraEnabled bool, jiraOrgId string) (string, error) {
-	// Create temporary file with current changelog
-	tmpfile, err := os.CreateTemp("", "changelog-*.md")
-	if err != nil {
-		return "", fmt.Errorf("failed to create temp file: %w", err)
-	}
-	defer os.Remove(tmpfile.Name())
-
-	// Write current changelog in final release notes format to temp file
-	var builder strings.Builder
-	builder.WriteString(BuildCrossLinksString(crossLinks))
-	if len(entries) > 0 {
-		builder.WriteString(BuildEntriesTableString(entries, jiraEnabled, jiraOrgId))
-	}
-	changelogText := builder.String()
-	if _, err := tmpfile.Write([]byte(changelogText)); err != nil {
-		return "", fmt.Errorf("failed to write to temp file: %w", err)
-	}
-	if err := tmpfile.Close(); err != nil {
-		return "", fmt.Errorf("failed to close temp file: %w", err)
-	}
-
-	// Get editor from environment
-	editor := os.Getenv("EDITOR")
-	if editor == "" {
-		editor = "vi" // fallback to vi
-	}
-
-	// Open editor
-	cmd := exec.Command(editor, tmpfile.Name())
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("failed to run editor: %w", err)
-	}
-
-	// Read the edited content and return as-is
-	editedContent, err := os.ReadFile(tmpfile.Name())
-	if err != nil {
-		return "", fmt.Errorf("failed to read edited file: %w", err)
-	}
-
-	return string(editedContent), nil
-}

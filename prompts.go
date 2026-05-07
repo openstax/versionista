@@ -96,24 +96,4 @@ func PromptForHotfixSuffix(lastVersion *semver.Version, sha string) (string, err
 	return suffix, nil
 }
 
-func PromptToEditChangelog() (bool, error) {
-	prompt := promptui.Prompt{
-		Label:     "Do you want to edit the changelog before release? (y/N)",
-		IsConfirm: true,
-	}
-	
-	result, err := prompt.Run()
-	if err != nil {
-		// If user just presses enter (no selection), default to no
-		if err == promptui.ErrAbort {
-			return false, nil
-		}
-		return false, fmt.Errorf("prompt failed: %w", err)
-	}
-	
-	return result == "y", nil
-}
-
-
-
 

@@ -177,6 +177,54 @@ func (c *CLI) reviewCommand(args []string, providedProject string) {
 			c.logger.Info("- %s: No releases found", displayName)
 		}
 	}
+
+	var sections []reviewSection
+	for _, repo := range repos {
+		var entries []Entry
+		err := c.runWithSpinner(fmt.Sprintf("Fetching changelog for %s...", repo.GetDisplayName()), func() error {
+			var err error
+			entries, err = c.manager.GenerateChangelog(ctx, repo)
+			return err
+		})
+		if err != nil {
+			c.logger.Error("Failed to generate changelog for %s: %v", repo.Repository, err)
+			continue
+		}
+
+		section := reviewSection{
+			RepoFullName: repo.Repository.String(),
+			CurrentVer:   FormatVersion(repo.LatestRelease),
+		}
+
+		if len(entries) == 0 {
+			section.Markdown = "_(no changes since last release)_\n"
+		} else {
+			var crossLinks []CrossLink
+			if repo.CrossLinkEnabled && len(repos) > 1 {
+				crossLinks = c.manager.generateCrossLinks(repo, repos)
+			}
+			section.Markdown = BuildCrossLinksString(crossLinks) +
+				BuildEntriesTableString(entries, repo.JiraEnabled, c.config.JiraOrgId)
+		}
+		sections = append(sections, section)
+	}
+
+	if len(sections) == 0 {
+		return
+	}
+
+	page, err := renderReviewHTML(projectName, sections)
+	if err != nil {
+		c.logger.FatalErr(err, "Failed to render review HTML")
+	}
+	path, err := writeReviewHTML(page)
+	if err != nil {
+		c.logger.FatalErr(err, "Failed to write review HTML")
+	}
+	c.logger.Info("Wrote review to %s", path)
+	if err := openInBrowser(path); err != nil {
+		c.logger.Warn("Failed to open browser: %v", err)
+	}
 }
 
 func (c *CLI) hotfixCommand(args []string, providedProject string) {
