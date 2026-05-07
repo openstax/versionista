@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Masterminds/semver"
 	"github.com/google/go-github/v28/github"
-	
 )
 
 type Type string
@@ -114,7 +114,7 @@ func (m *Manager) GenerateChangelog(ctx context.Context, repo *ReleaseRepository
 }
 
 func (m *Manager) GenerateChangelogFromSHA(ctx context.Context, repo *ReleaseRepository, targetSHA string) ([]Entry, error) {
-	prs, err := m.getPRsForChangelog(ctx, repo, targetSHA)
+	prs, err := m.getPRsForChangelog(repo, targetSHA)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func (m *Manager) GenerateChangelogFromSHA(ctx context.Context, repo *ReleaseRep
 	return entries, nil
 }
 
-func (m *Manager) getPRsForChangelog(ctx context.Context, repo *ReleaseRepository, targetSHA string) ([]*github.PullRequest, error) {
+func (m *Manager) getPRsForChangelog(repo *ReleaseRepository, targetSHA string) ([]*github.PullRequest, error) {
 	// Check if this is a fresh repository (v0.0.0) - use last 10 PRs
 	if repo.LatestRelease.String() == "0.0.0" {
 		m.logger.Debug("No previous releases found for %s, using last 10 PRs", repo.Repository)
@@ -172,6 +172,87 @@ func (m *Manager) getPRsForChangelog(ctx context.Context, repo *ReleaseRepositor
 	}
 
 	return prs, nil
+}
+
+// GenerateChangelogBetween returns changelog entries for PRs whose merge commits
+// are in the range base..head (exclusive of base, inclusive of head).
+func (m *Manager) GenerateChangelogBetween(ctx context.Context, repo *ReleaseRepository, base, head string) ([]Entry, error) {
+	comparison, err := m.client.CompareCommits(repo.Repository, base, head)
+	if err != nil {
+		return nil, err
+	}
+
+	var entries []Entry
+	for _, commit := range comparison.Commits {
+		prNumber, err := ParsePRNumber(commit.GetCommit().GetMessage())
+		if err != nil {
+			continue
+		}
+		pr, err := m.client.GetPullRequest(repo.Repository, prNumber)
+		if err != nil {
+			continue
+		}
+		entries = append(entries, m.createEntryFromPR(repo, pr))
+	}
+	return entries, nil
+}
+
+// AppendToRelease adds entries for commits between the release's current tag SHA
+// and newSHA to the release body, then force-updates the tag to newSHA.
+func (m *Manager) AppendToRelease(ctx context.Context, repo *ReleaseRepository, tag, newSHA string) error {
+	release, err := m.client.GetReleaseByTag(repo.Repository, tag)
+	if err != nil {
+		return err
+	}
+
+	prevSHA, err := m.client.GetTagSHA(repo.Repository, tag)
+	if err != nil {
+		return err
+	}
+
+	if prevSHA == newSHA {
+		m.logger.Info("Tag %s already points at %s, nothing to append", tag, newSHA)
+		return nil
+	}
+
+	entries, err := m.GenerateChangelogBetween(ctx, repo, prevSHA, newSHA)
+	if err != nil {
+		return fmt.Errorf("failed to generate changelog %s..%s: %w", prevSHA, newSHA, err)
+	}
+
+	if len(entries) == 0 {
+		m.logger.Info("No PR-bearing commits between %s and %s for %s", shortSHA(prevSHA), shortSHA(newSHA), repo.Repository)
+		return nil
+	}
+
+	header := fmt.Sprintf("\n## Appended %s (%s)\n\n", time.Now().Format("2006-01-02"), shortSHA(newSHA))
+	newBody := release.GetBody() + header + BuildEntriesTableString(entries, repo.JiraEnabled, m.jiraOrgId)
+
+	if m.dryRun {
+		m.logger.Info("[DRY RUN] Would append %d entries to release %s for %s and move tag to %s",
+			len(entries), tag, repo.Repository, newSHA)
+		m.logger.Debug("[DRY RUN] New release body:\n%s", newBody)
+		return nil
+	}
+
+	update := &github.RepositoryRelease{Body: &newBody}
+	if _, err := m.client.EditRelease(repo.Repository, release.GetID(), update); err != nil {
+		return err
+	}
+	if err := m.client.UpdateTagRef(repo.Repository, tag, newSHA); err != nil {
+		return fmt.Errorf("release body updated but tag move failed: %w", err)
+	}
+
+	m.logger.Info("Appended %d entries to release %s for %s and moved tag to %s",
+		len(entries), tag, repo.Repository, shortSHA(newSHA))
+	return nil
+}
+
+func shortSHA(sha string) string {
+	if len(sha) > 7 {
+		return sha[:7]
+	}
+	return sha
 }
 
 func (m *Manager) createEntryFromPR(repo *ReleaseRepository, pr *github.PullRequest) Entry {
@@ -324,7 +405,7 @@ func (m *Manager) ProcessRelease(ctx context.Context, repo *ReleaseRepository, r
 
 	var crossLinks []CrossLink
 	if repo.CrossLinkEnabled && len(allRepos) > 1 {
-		crossLinks = m.generateCrossLinks(repo, allRepos, newVersion)
+		crossLinks = m.generateCrossLinks(repo, allRepos)
 	}
 
 	if err := m.CreateReleaseFromEntries(ctx, repo, newVersion, entries, crossLinks, releaseType); err != nil {
@@ -407,41 +488,16 @@ func (m *Manager) ProcessReleaseInteractiveWithEntries(ctx context.Context, repo
 
 	var crossLinks []CrossLink
 	if repo.CrossLinkEnabled && len(allRepos) > 1 {
-		crossLinks = m.generateCrossLinks(repo, allRepos, newVersion)
+		crossLinks = m.generateCrossLinks(repo, allRepos)
 	}
 
-	// Ask if user wants to edit changelog
-	var releaseNotes string
 	var builder strings.Builder
 	builder.WriteString(BuildCrossLinksString(crossLinks))
-
 	if len(entries) > 0 {
-		wantEdit, err := PromptToEditChangelog()
-		if err != nil {
-			m.logger.Warn("Failed to prompt for changelog editing: %v", err)
-			builder.WriteString(BuildEntriesTableString(entries, repo.JiraEnabled, m.jiraOrgId))
-			releaseNotes = builder.String()
-		} else if wantEdit {
-			m.logger.Info("Opening changelog for editing...")
-			editedText, err := EditChangelog(entries, crossLinks, repo.JiraEnabled, m.jiraOrgId)
-			if err != nil {
-				m.logger.Warn("Failed to edit changelog: %v", err)
-				m.logger.Info("Using original changelog")
-				builder.WriteString(BuildEntriesTableString(entries, repo.JiraEnabled, m.jiraOrgId))
-				releaseNotes = builder.String()
-			} else {
-				releaseNotes = editedText
-				m.logger.Info("Using edited changelog")
-			}
-		} else {
-			builder.WriteString(BuildEntriesTableString(entries, repo.JiraEnabled, m.jiraOrgId))
-			releaseNotes = builder.String()
-		}
-	} else {
-		releaseNotes = builder.String()
+		builder.WriteString(BuildEntriesTableString(entries, repo.JiraEnabled, m.jiraOrgId))
 	}
+	releaseNotes := builder.String()
 
-	// Create the release
 	if err := m.CreateRelease(ctx, repo, newVersion, releaseNotes, releaseType); err != nil {
 		return nil, err
 	}
@@ -455,7 +511,7 @@ func (m *Manager) ProcessReleaseInteractiveWithEntries(ctx context.Context, repo
 
 
 
-func (m *Manager) generateCrossLinks(currentRepo *ReleaseRepository, repos []*ReleaseRepository, currentVersion *semver.Version) []CrossLink {
+func (m *Manager) generateCrossLinks(currentRepo *ReleaseRepository, repos []*ReleaseRepository) []CrossLink {
 	var links []CrossLink
 
 	for _, repo := range repos {

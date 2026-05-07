@@ -298,6 +298,48 @@ func (c *CLI) hotfixCommand(args []string, providedProject string) {
 	c.logger.Info("Hotfix release completed for %s: %s", repo.Repository, FormatVersion(hotfixVersion))
 }
 
+func (c *CLI) appendCommand(args []string, providedProject string) {
+	ctx := context.Background()
+
+	repositoryName := args[0]
+	tag := args[1]
+	sha := args[2]
+
+	var projectName string
+	var err error
+	if providedProject != "" {
+		projectName = providedProject
+	} else {
+		projectName, err = c.config.FindProjectByRepository(repositoryName)
+		if err != nil {
+			c.logger.FatalErr(err, "Failed to determine project")
+		}
+	}
+
+	allRepos, err := c.ProcessRepositories(ctx, projectName)
+	if err != nil {
+		c.logger.FatalErr(err, "Failed to process repository")
+	}
+
+	var repo *ReleaseRepository
+	for _, r := range allRepos {
+		if r.Name == repositoryName {
+			repo = r
+			break
+		}
+	}
+	if repo == nil {
+		c.logger.FatalErr(fmt.Errorf("repository '%s' not found in project '%s'", repositoryName, projectName), "Repository not found")
+	}
+
+	err = c.runWithSpinner(fmt.Sprintf("Appending commits up to %s to release %s...", sha, tag), func() error {
+		return c.manager.AppendToRelease(ctx, repo, tag, sha)
+	})
+	if err != nil {
+		c.logger.FatalErr(err, "Failed to append to release")
+	}
+}
+
 func configureCliCommands() {
 	var configPath string
 	var logLevel string
@@ -370,9 +412,20 @@ If no project name is specified and only one project is configured, it will be u
 		},
 	}
 
+	appendCmd := &cobra.Command{
+		Use:   "append <repository> <release-tag> <sha>",
+		Short: "Append PRs between the release's current tag and the given SHA, then move the tag",
+		Args:  cobra.ExactArgs(3),
+		Run: func(cmd *cobra.Command, args []string) {
+			cli := loadConfigAndCreateCLI()
+			cli.appendCommand(args, projectName)
+		},
+	}
+
 	rootCmd.AddCommand(releaseCmd)
 	rootCmd.AddCommand(reviewCmd)
 	rootCmd.AddCommand(hotfixCmd)
+	rootCmd.AddCommand(appendCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		// Create a basic logger for command execution errors

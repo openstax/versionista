@@ -194,6 +194,54 @@ func (c *Client) CreateReleaseFromSHA(repo *Repository, release *github.Reposito
 	return createdRelease, nil
 }
 
+func (c *Client) GetReleaseByTag(repo *Repository, tag string) (*github.RepositoryRelease, error) {
+	release, _, err := c.Repositories.GetReleaseByTag(c.ctx, repo.Owner, repo.Name, tag)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get release %s for %s: %w", tag, repo, err)
+	}
+	return release, nil
+}
+
+func (c *Client) EditRelease(repo *Repository, id int64, release *github.RepositoryRelease) (*github.RepositoryRelease, error) {
+	updated, _, err := c.Repositories.EditRelease(c.ctx, repo.Owner, repo.Name, id, release)
+	if err != nil {
+		return nil, fmt.Errorf("failed to edit release %d for %s: %w", id, repo, err)
+	}
+	return updated, nil
+}
+
+// GetTagSHA returns the commit SHA that the given tag ref currently points at.
+// For annotated tags, this resolves through the tag object to the underlying commit.
+func (c *Client) GetTagSHA(repo *Repository, tag string) (string, error) {
+	ref, _, err := c.Git.GetRef(c.ctx, repo.Owner, repo.Name, "tags/"+tag)
+	if err != nil {
+		return "", fmt.Errorf("failed to get tag ref %s for %s: %w", tag, repo, err)
+	}
+	obj := ref.GetObject()
+	if obj.GetType() == "tag" {
+		tagObj, _, err := c.Git.GetTag(c.ctx, repo.Owner, repo.Name, obj.GetSHA())
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve annotated tag %s for %s: %w", tag, repo, err)
+		}
+		return tagObj.GetObject().GetSHA(), nil
+	}
+	return obj.GetSHA(), nil
+}
+
+// UpdateTagRef force-updates a lightweight tag to point at the given SHA.
+func (c *Client) UpdateTagRef(repo *Repository, tag, sha string) error {
+	refName := "tags/" + tag
+	ref := &github.Reference{
+		Ref:    &refName,
+		Object: &github.GitObject{SHA: &sha},
+	}
+	_, _, err := c.Git.UpdateRef(c.ctx, repo.Owner, repo.Name, ref, true)
+	if err != nil {
+		return fmt.Errorf("failed to update tag %s to %s for %s: %w", tag, sha, repo, err)
+	}
+	return nil
+}
+
 func (c *Client) GetPullRequestComments(repo *Repository, number int) ([]*github.IssueComment, error) {
 	opts := &github.IssueListCommentsOptions{
 		ListOptions: github.ListOptions{
