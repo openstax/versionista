@@ -41,17 +41,21 @@ type ReleaseRepository struct {
 	Alias           string
 	JiraEnabled     bool
 	CrossLinkEnabled bool
+	GenerateAssets  string
+	AssetPath       string
 	LatestRelease   *semver.Version
 	CommitSHA       string
 }
 
-func NewRepository(repo *Repository, alias string, jiraEnabled, crossLinkEnabled bool, commitSHA string) *ReleaseRepository {
+func NewRepository(repo *Repository, cfg RepoConfig, commitSHA string) *ReleaseRepository {
 	return &ReleaseRepository{
-		Repository:      repo,
-		Alias:           alias,
-		JiraEnabled:     jiraEnabled,
-		CrossLinkEnabled: crossLinkEnabled,
-		CommitSHA:       commitSHA,
+		Repository:       repo,
+		Alias:            cfg.Alias,
+		JiraEnabled:      cfg.Jira,
+		CrossLinkEnabled: cfg.CrossLink,
+		GenerateAssets:   cfg.GenerateAssets,
+		AssetPath:        cfg.Path,
+		CommitSHA:        commitSHA,
 	}
 }
 
@@ -315,7 +319,17 @@ func (m *Manager) CreateRelease(ctx context.Context, repo *ReleaseRepository, ne
 	if m.dryRun {
 		m.logger.Info("[DRY RUN] Would create release %s for %s", tagName, repo.Repository)
 		m.logger.Debug("[DRY RUN] Release notes:\n%s", releaseNotes)
+		if repo.GenerateAssets != "" {
+			m.logger.Info("[DRY RUN] Would run generate-assets for %s with version %s", repo.Repository, tagName)
+		}
 		return nil
+	}
+
+	// Generate assets before creating the release so a failing generate-assets
+	// command aborts without leaving an orphaned release on GitHub.
+	assetPaths, err := m.generateAssets(repo, tagName)
+	if err != nil {
+		return err
 	}
 
 	release := &github.RepositoryRelease{
@@ -325,12 +339,42 @@ func (m *Manager) CreateRelease(ctx context.Context, repo *ReleaseRepository, ne
 		Draft:      &isDraft,
 	}
 
-	_, err := m.client.CreateRelease(repo.Repository, release)
+	created, err := m.client.CreateRelease(repo.Repository, release)
 	if err != nil {
 		return fmt.Errorf("failed to create release: %w", err)
 	}
 
 	m.logger.Info("Successfully created release %s for %s", tagName, repo.Repository)
+
+	if err := m.uploadAssets(repo, created.GetID(), tagName, assetPaths); err != nil {
+		return err
+	}
+	return nil
+}
+
+// generateAssets runs the repo's generate-assets command (if configured) and
+// returns the file paths it emits. Returns nil when no command is configured.
+func (m *Manager) generateAssets(repo *ReleaseRepository, version string) ([]string, error) {
+	if repo.GenerateAssets == "" {
+		return nil, nil
+	}
+
+	m.logger.Info("Generating assets for %s...", repo.GetDisplayName())
+	paths, err := GenerateAssets(repo.GenerateAssets, version, repo.AssetPath, repo.CommitSHA)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate assets for %s: %w", repo.Repository, err)
+	}
+	return paths, nil
+}
+
+// uploadAssets uploads previously generated asset files to the given release.
+func (m *Manager) uploadAssets(repo *ReleaseRepository, releaseID int64, version string, paths []string) error {
+	for _, path := range paths {
+		if _, err := m.client.UploadReleaseAsset(repo.Repository, releaseID, path); err != nil {
+			return err
+		}
+		m.logger.Info("Uploaded asset %s to release %s for %s", path, version, repo.Repository)
+	}
 	return nil
 }
 

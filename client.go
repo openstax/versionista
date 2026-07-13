@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -192,6 +194,21 @@ func (c *Client) CreateReleaseFromSHA(repo *Repository, release *github.Reposito
 		return nil, fmt.Errorf("failed to create release from SHA %s for %s: %w", targetCommitish, repo, err)
 	}
 	return createdRelease, nil
+}
+
+func (c *Client) UploadReleaseAsset(repo *Repository, releaseID int64, path string) (*github.ReleaseAsset, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open asset %s: %w", path, err)
+	}
+	defer file.Close()
+
+	opts := &github.UploadOptions{Name: filepath.Base(path)}
+	asset, _, err := c.Repositories.UploadReleaseAsset(c.ctx, repo.Owner, repo.Name, releaseID, opts, file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to upload asset %s to release %d for %s: %w", path, releaseID, repo, err)
+	}
+	return asset, nil
 }
 
 func (c *Client) GetReleaseByTag(repo *Repository, tag string) (*github.RepositoryRelease, error) {

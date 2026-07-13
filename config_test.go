@@ -14,6 +14,7 @@ projects:
       alias: Test Repo 1
       jira: true
       crossLink: true
+      generate-assets: ./build.sh
     - repo: org2/repo2
       alias: Test Repo 2
       jira: false
@@ -78,6 +79,9 @@ branches:
 	}
 	if !repo1.CrossLink {
 		t.Error("Expected CrossLink to be enabled")
+	}
+	if repo1.GenerateAssets != "./build.sh" {
+		t.Errorf("Expected generate-assets './build.sh', got: %s", repo1.GenerateAssets)
 	}
 
 	if cfg.JiraOrgId != "my-org" {
@@ -210,5 +214,27 @@ func TestGetBranch(t *testing.T) {
 	branch = cfg.GetBranch("org/unmapped")
 	if branch != "main" {
 		t.Errorf("Expected 'main' (default), got: %s", branch)
+	}
+}
+
+func TestExpandTilde(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("could not determine home dir: %v", err)
+	}
+
+	cases := map[string]string{
+		"~":            home,
+		"~/code/foo":   home + "/code/foo",
+		"/abs/path":    "/abs/path",
+		"relative/dir": "relative/dir",
+		"~other/home":  "~other/home",
+		"":             "",
+	}
+
+	for in, want := range cases {
+		if got := expandTilde(in); got != want {
+			t.Errorf("expandTilde(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

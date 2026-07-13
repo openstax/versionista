@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -17,10 +18,12 @@ type Config struct {
 }
 
 type RepoConfig struct {
-	Repo      string `mapstructure:"repo"`
-	Alias     string `mapstructure:"alias"`
-	Jira      bool   `mapstructure:"jira"`
-	CrossLink bool   `mapstructure:"crossLink"`
+	Repo           string `mapstructure:"repo"`
+	Alias          string `mapstructure:"alias"`
+	Jira           bool   `mapstructure:"jira"`
+	CrossLink      bool   `mapstructure:"crossLink"`
+	GenerateAssets string `mapstructure:"generate-assets"`
+	Path           string `mapstructure:"path"`
 }
 
 
@@ -52,7 +55,26 @@ func LoadFromPath(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	for project, repos := range cfg.Projects {
+		for i := range repos {
+			repos[i].Path = expandTilde(repos[i].Path)
+		}
+		cfg.Projects[project] = repos
+	}
+
 	return &cfg, nil
+}
+
+// expandTilde replaces a leading ~ (or ~/) in path with the user's home
+// directory. Paths that don't start with ~ are returned unchanged, as are
+// forms like ~other that reference another user's home.
+func expandTilde(path string) string {
+	if path == "~" || strings.HasPrefix(path, "~/") {
+		if homeDir, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(homeDir, strings.TrimPrefix(path, "~"))
+		}
+	}
+	return path
 }
 
 func (c *Config) GetProjectRepos(projectName string) ([]RepoConfig, error) {

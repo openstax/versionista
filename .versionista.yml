@@ -5,6 +5,7 @@ projects:
       alias: Test Repo 1
       jira: true
       crossLink: true
+      generate-assets: ./scripts/build-release.sh
     - repo: org2/repo2
       alias: Test Repo 2
       jira: false
