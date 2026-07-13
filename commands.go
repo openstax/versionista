@@ -78,7 +78,7 @@ func (c *CLI) ProcessRepositories(ctx context.Context, repoSpec string) ([]*Rele
 		}
 
 		commitSHA := c.config.GetBranch(cfg.Repo)
-		repo := NewRepository(ghRepo, cfg.Alias, cfg.Jira, cfg.CrossLink, commitSHA)
+		repo := NewRepository(ghRepo, cfg, commitSHA)
 		repos = append(repos, repo)
 	}
 
@@ -107,7 +107,19 @@ func (c *CLI) ProcessRepositories(ctx context.Context, repoSpec string) ([]*Rele
 }
 
 
-func (c *CLI) releaseCommand(args []string, providedProject string) {
+// findRepoByName returns the repository in repos matching name, which may be
+// either the short name (e.g. "qa-review") or the full "owner/repo" spec.
+// Returns nil if none match.
+func findRepoByName(repos []*ReleaseRepository, name string) *ReleaseRepository {
+	for _, r := range repos {
+		if r.Name == name || r.Repository.String() == name {
+			return r
+		}
+	}
+	return nil
+}
+
+func (c *CLI) releaseCommand(args []string, providedProject, repoFilter string) {
 	ctx := context.Background()
 
 	projectName, err := c.config.GetProjectName(providedProject, args)
@@ -115,9 +127,20 @@ func (c *CLI) releaseCommand(args []string, providedProject string) {
 		c.logger.FatalErr(err, "Failed to determine project")
 	}
 
-	repos, err := c.ProcessRepositories(ctx, projectName)
+	// allRepos is always the full project so cross-links resolve correctly.
+	allRepos, err := c.ProcessRepositories(ctx, projectName)
 	if err != nil {
 		c.logger.FatalErr(err, "Failed to process repositories")
+	}
+
+	// repos is the set we actually release; narrowed to one when --repo is given.
+	repos := allRepos
+	if repoFilter != "" {
+		repo := findRepoByName(allRepos, repoFilter)
+		if repo == nil {
+			c.logger.FatalErr(fmt.Errorf("repository '%s' not found in project '%s'", repoFilter, projectName), "Repository not found")
+		}
+		repos = []*ReleaseRepository{repo}
 	}
 
 	releaseType := TypeRegular
@@ -136,7 +159,7 @@ func (c *CLI) releaseCommand(args []string, providedProject string) {
 		}
 
 		// Process this repository individually using the interactive method
-		release, err := c.manager.ProcessReleaseInteractiveWithEntries(ctx, repo, releaseType, repos, entries)
+		release, err := c.manager.ProcessReleaseInteractiveWithEntries(ctx, repo, releaseType, allRepos, entries)
 		if err != nil {
 			c.logger.FatalErr(err, fmt.Sprintf("Failed to process release for %s", repo.Repository))
 		}
@@ -345,6 +368,7 @@ func configureCliCommands() {
 	var logLevel string
 	var dryRun bool
 	var projectName string
+	var repoName string
 
 	loadConfigAndCreateCLI := func() *CLI {
 		level := ParseLevel(logLevel)
@@ -373,7 +397,7 @@ If no project name is specified and only one project is configured, it will be u
 		Args: cobra.MaximumNArgs(1), // Allow 0 or 1 arguments
 		Run: func(cmd *cobra.Command, args []string) {
 			cli := loadConfigAndCreateCLI()
-			cli.releaseCommand(args, projectName)
+			cli.releaseCommand(args, projectName, repoName)
 		},
 	}
 
@@ -381,6 +405,7 @@ If no project name is specified and only one project is configured, it will be u
 	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "l", "warn", "Set logging level (debug, info, warn, error)")
 	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "Perform a dry run without creating actual releases")
 	rootCmd.PersistentFlags().StringVarP(&projectName, "project", "p", "", "Specify the project to use")
+	rootCmd.Flags().StringVarP(&repoName, "repo", "r", "", "Release only the named repository within the project")
 
 	releaseCmd := &cobra.Command{
 		Use:   "release [project-name|owner/repo]",
@@ -388,9 +413,10 @@ If no project name is specified and only one project is configured, it will be u
 		Args:  cobra.MaximumNArgs(1), // Allow 0 or 1 arguments
 		Run: func(cmd *cobra.Command, args []string) {
 			cli := loadConfigAndCreateCLI()
-			cli.releaseCommand(args, projectName)
+			cli.releaseCommand(args, projectName, repoName)
 		},
 	}
+	releaseCmd.Flags().StringVarP(&repoName, "repo", "r", "", "Release only the named repository within the project")
 
 	reviewCmd := &cobra.Command{
 		Use:   "review [project-name|owner/repo]",
