@@ -103,7 +103,7 @@ func TestBumpVersion(t *testing.T) {
 }
 
 func TestBumpVersionFromZero(t *testing.T) {
-	// Test special case: bumping from 0.0.0 should always result in 1.0.0
+	// Test special case: bumping from 0.0.0 (no previous release) should always result in 0.0.1
 	baseVersion, _ := semver.NewVersion("0.0.0")
 
 	tests := []struct {
@@ -114,22 +114,22 @@ func TestBumpVersionFromZero(t *testing.T) {
 		{
 			name:     "patch bump from 0.0.0",
 			bumpType: BumpPatch,
-			expected: "1.0.0",
+			expected: "0.0.1",
 		},
 		{
 			name:     "minor bump from 0.0.0",
 			bumpType: BumpMinor,
-			expected: "1.0.0",
+			expected: "0.0.1",
 		},
 		{
 			name:     "major bump from 0.0.0",
 			bumpType: BumpMajor,
-			expected: "1.0.0",
+			expected: "0.0.1",
 		},
 		{
-			name:     "invalid bump from 0.0.0 defaults to 1.0.0",
+			name:     "invalid bump from 0.0.0 defaults to 0.0.1",
 			bumpType: BumpType("invalid"),
-			expected: "1.0.0",
+			expected: "0.0.1",
 		},
 	}
 

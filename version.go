@@ -27,9 +27,9 @@ const (
 )
 
 func BumpVersion(current *semver.Version, bumpType BumpType) *semver.Version {
-	// Special case: if current version is 0.0.0 (no previous release), default to 1.0.0
+	// Special case: if current version is 0.0.0 (no previous release), default to 0.0.1
 	if current.String() == "0.0.0" {
-		newVer, _ := semver.NewVersion("1.0.0")
+		newVer, _ := semver.NewVersion("0.0.1")
 		return newVer
 	}
 	
