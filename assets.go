@@ -86,7 +86,15 @@ func GenerateAssets(command, version, dir, sha string) (paths []string, err erro
 // or commit currently checked out, then checks out the ref (sha) being released
 // so generate-assets builds from the exact code that will be published. It
 // returns the original ref so the caller can restore it afterwards.
-func prepareRepo(dir, sha string) (string, error) {
+//
+// When ref is a branch name (the common case — the release config points at a
+// branch like "main"), prepareRepo fetches the remote first and checks out the
+// remote-tracking tip (origin/<branch>) rather than the possibly-stale LOCAL
+// branch, so a release always builds what is actually published on the remote —
+// not whatever the operator's local checkout happens to be. Fetch is best-effort:
+// a repo with no remote (e.g. tests, air-gapped builds) falls back to checking
+// out ref as-is, which also covers plain SHAs and tags.
+func prepareRepo(dir, ref string) (string, error) {
 	// Confirm dir is a git working tree.
 	if _, err := runGit(dir, "rev-parse", "--is-inside-work-tree"); err != nil {
 		return "", fmt.Errorf("%q is not a git repository: %w", dir, err)
@@ -106,11 +114,56 @@ func prepareRepo(dir, sha string) (string, error) {
 		return "", err
 	}
 
-	if _, err := runGit(dir, "checkout", sha); err != nil {
-		return "", fmt.Errorf("failed to checkout %q in %q: %w", sha, dir, err)
+	// Resolve the checkout target: prefer the up-to-date remote tip for a branch.
+	target := resolveCheckoutTarget(dir, ref)
+	if _, err := runGit(dir, "checkout", target); err != nil {
+		return "", fmt.Errorf("failed to checkout %q in %q: %w", target, dir, err)
 	}
 
 	return original, nil
+}
+
+// resolveCheckoutTarget decides what prepareRepo should actually check out for
+// the requested ref. If ref names a remote branch, it fetches that remote and
+// returns the remote-tracking ref (e.g. "origin/main"), so the build reflects the
+// published tip rather than a stale local branch. For SHAs, tags, or repos with
+// no matching remote branch, it returns ref unchanged. All remote probing is
+// best-effort — any failure falls back to ref so local-only repos still work.
+func resolveCheckoutTarget(dir, ref string) string {
+	remote := defaultRemote(dir)
+	if remote == "" {
+		return ref
+	}
+	// Only rewrite branch names; leave SHAs/tags alone. A ref is treated as a
+	// branch when the remote advertises it (ls-remote --heads matches a line).
+	heads, err := runGit(dir, "ls-remote", "--heads", remote, ref)
+	if err != nil || strings.TrimSpace(heads) == "" {
+		return ref
+	}
+	// Fetch just that branch so origin/<ref> is current, then target it.
+	if _, err := runGit(dir, "fetch", remote, ref); err != nil {
+		return ref // fetch failed — fall back to the local ref rather than abort.
+	}
+	return remote + "/" + ref
+}
+
+// defaultRemote returns the remote to fetch from — "origin" when present, else
+// the first configured remote, or "" when the repo has none (local-only).
+func defaultRemote(dir string) string {
+	out, err := runGit(dir, "remote")
+	if err != nil {
+		return ""
+	}
+	remotes := strings.Fields(out)
+	for _, r := range remotes {
+		if r == "origin" {
+			return "origin"
+		}
+	}
+	if len(remotes) > 0 {
+		return remotes[0]
+	}
+	return ""
 }
 
 // currentRef returns the branch name currently checked out at dir, or the
