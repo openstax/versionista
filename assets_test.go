@@ -212,3 +212,121 @@ func TestGenerateAssetsRestoresOriginalBranch(t *testing.T) {
 		t.Errorf("Expected to be restored to branch %q, got %q", branch, got)
 	}
 }
+
+// gitIn runs a git command in dir, failing the test on error.
+func gitIn(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s (in %s) failed: %v\n%s", strings.Join(args, " "), dir, err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// TestGenerateAssetsBuildsRemoteBranchTip is the regression test for the stale
+// local-branch bug: when the release ref is a BRANCH NAME and the remote is
+// ahead of the local branch, the build must run against the REMOTE tip (what is
+// actually published), not the operator's stale local checkout.
+func TestGenerateAssetsBuildsRemoteBranchTip(t *testing.T) {
+	// A bare repo acts as the remote, seeded with one commit via a scratch clone.
+	remote := t.TempDir()
+	gitIn(t, remote, "init", "-q", "--bare")
+
+	seed := t.TempDir()
+	gitIn(t, seed, "clone", "-q", remote, ".")
+	gitIn(t, seed, "config", "user.email", "t@example.com")
+	gitIn(t, seed, "config", "user.name", "T")
+	gitIn(t, seed, "config", "commit.gpgsign", "false")
+	if err := os.WriteFile(filepath.Join(seed, "marker.txt"), []byte("v1"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, seed, "add", ".")
+	gitIn(t, seed, "commit", "-q", "-m", "v1")
+	branch := gitIn(t, seed, "rev-parse", "--abbrev-ref", "HEAD")
+	gitIn(t, seed, "push", "-q", "origin", branch)
+
+	// The operator's working copy: clone the remote at v1 (its local branch is now
+	// one commit BEHIND once we push v2 to the remote below).
+	work := t.TempDir()
+	gitIn(t, work, "clone", "-q", remote, ".")
+
+	// Advance the REMOTE to v2 via the seed clone. work's local branch still at v1.
+	if err := os.WriteFile(filepath.Join(seed, "marker.txt"), []byte("v2"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, seed, "add", ".")
+	gitIn(t, seed, "commit", "-q", "-m", "v2")
+	gitIn(t, seed, "push", "-q", "origin", branch)
+
+	// Sanity: work's local branch is behind (still reads v1).
+	if got := gitIn(t, work, "show", "HEAD:marker.txt"); got != "v1" {
+		t.Fatalf("precondition: work should be at v1, got %q", got)
+	}
+
+	// Release by BRANCH NAME. The generate-assets command writes marker.txt's
+	// content to an output file so we can prove which commit was built.
+	outFile := filepath.Join(work, "built-content.txt")
+	cmd := "cp marker.txt " + outFile + " && echo " + outFile
+	if _, err := GenerateAssets(cmd, "1.0.0", work, branch); err != nil {
+		t.Fatalf("GenerateAssets returned error: %v", err)
+	}
+
+	built, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatalf("reading built content: %v", err)
+	}
+	if strings.TrimSpace(string(built)) != "v2" {
+		t.Errorf("build ran against %q, want the remote tip %q — stale local branch was used", strings.TrimSpace(string(built)), "v2")
+	}
+
+	// And the working copy is restored to its original branch afterwards.
+	if got := gitIn(t, work, "rev-parse", "--abbrev-ref", "HEAD"); got != branch {
+		t.Errorf("expected restore to branch %q, got %q", branch, got)
+	}
+}
+
+// TestGenerateAssetsExplicitSHANotRewritten confirms that when the ref is a
+// commit SHA (not a branch), it is built as-is — the remote-branch resolution
+// must not hijack an explicit SHA.
+func TestGenerateAssetsExplicitSHANotRewritten(t *testing.T) {
+	remote := t.TempDir()
+	gitIn(t, remote, "init", "-q", "--bare")
+
+	work := t.TempDir()
+	gitIn(t, work, "clone", "-q", remote, ".")
+	gitIn(t, work, "config", "user.email", "t@example.com")
+	gitIn(t, work, "config", "user.name", "T")
+	gitIn(t, work, "config", "commit.gpgsign", "false")
+	if err := os.WriteFile(filepath.Join(work, "marker.txt"), []byte("first"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, work, "add", ".")
+	gitIn(t, work, "commit", "-q", "-m", "first")
+	firstSHA := gitIn(t, work, "rev-parse", "HEAD")
+	branch := gitIn(t, work, "rev-parse", "--abbrev-ref", "HEAD")
+	gitIn(t, work, "push", "-q", "origin", branch)
+
+	// Second commit, pushed — so the branch tip differs from firstSHA.
+	if err := os.WriteFile(filepath.Join(work, "marker.txt"), []byte("second"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, work, "add", ".")
+	gitIn(t, work, "commit", "-q", "-m", "second")
+	gitIn(t, work, "push", "-q", "origin", branch)
+
+	outFile := filepath.Join(work, "built-content.txt")
+	cmd := "cp marker.txt " + outFile + " && echo " + outFile
+	if _, err := GenerateAssets(cmd, "1.0.0", work, firstSHA); err != nil {
+		t.Fatalf("GenerateAssets returned error: %v", err)
+	}
+
+	built, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatalf("reading built content: %v", err)
+	}
+	if strings.TrimSpace(string(built)) != "first" {
+		t.Errorf("explicit SHA build ran against %q, want %q", strings.TrimSpace(string(built)), "first")
+	}
+}
