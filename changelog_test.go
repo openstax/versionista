@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -361,6 +362,136 @@ func TestBuildEntriesTableString(t *testing.T) {
 	}
 	if !strings.Contains(result, "[TEST-456](https://my-org.atlassian.net/browse/TEST-456)") {
 		t.Error("Expected normalized ticket reference")
+	}
+}
+
+func TestFitEntriesToBodyLimitUnderLimit(t *testing.T) {
+	entries := []Entry{
+		{Number: 1, Date: "2023-01-01", Author: "a", Title: "Title", Description: "short desc"},
+	}
+
+	// A generous limit means no truncation and identical output to the plain builder.
+	got := FitEntriesToBodyLimit("", entries, false, "", MaxReleaseBodySize)
+	want := BuildEntriesTableString(entries, false, "")
+	if got != want {
+		t.Errorf("expected unchanged table under the limit\n got: %q\nwant: %q", got, want)
+	}
+}
+
+func TestFitEntriesToBodyLimitTruncatesLongest(t *testing.T) {
+	entries := []Entry{
+		{Number: 1, Date: "2023-01-01", Author: "a", Title: "Small", Description: "tiny"},
+		{Number: 2, Date: "2023-01-02", Author: "b", Title: "Big", Description: strings.Repeat("x", 5000)},
+	}
+
+	limit := 1000
+	got := FitEntriesToBodyLimit("", entries, false, "", limit)
+
+	if len(got) > limit {
+		t.Fatalf("expected body within %d chars, got %d", limit, len(got))
+	}
+	// Both PRs must still be present in the table.
+	if !strings.Contains(got, "| #1 |") || !strings.Contains(got, "| #2 |") {
+		t.Errorf("expected both PR rows to remain, got: %q", got)
+	}
+	// The large description must be truncated with a notice.
+	if !strings.Contains(got, truncationNotice) {
+		t.Errorf("expected truncation notice in body, got: %q", got)
+	}
+	// The small, untouched description should survive intact.
+	if !strings.Contains(got, "tiny") {
+		t.Errorf("expected small description to remain, got: %q", got)
+	}
+}
+
+func TestFitEntriesToBodyLimitAccountsForPrefix(t *testing.T) {
+	entries := []Entry{
+		{Number: 1, Date: "2023-01-01", Author: "a", Title: "Big", Description: strings.Repeat("x", 5000)},
+	}
+
+	limit := 2000
+	prefix := strings.Repeat("p", 1500)
+	table := FitEntriesToBodyLimit(prefix, entries, false, "", limit)
+
+	if len(prefix)+len(table) > limit {
+		t.Fatalf("expected prefix+table within %d chars, got %d", limit, len(prefix)+len(table))
+	}
+}
+
+func TestFitEntriesToBodyLimitDoesNotMutateInput(t *testing.T) {
+	original := strings.Repeat("y", 5000)
+	entries := []Entry{
+		{Number: 1, Date: "2023-01-01", Author: "a", Title: "Big", Description: original},
+	}
+
+	FitEntriesToBodyLimit("", entries, false, "", 500)
+
+	if entries[0].Description != original {
+		t.Errorf("expected caller's entries to be unmodified, description changed")
+	}
+}
+
+func TestTruncateDescription(t *testing.T) {
+	tests := []struct {
+		name      string
+		desc      string
+		targetLen int
+	}{
+		{name: "target below notice collapses to notice", desc: "hello world", targetLen: 3},
+		{name: "target larger than desc returns desc", desc: "hello", targetLen: 100},
+		{name: "trims to target", desc: strings.Repeat("z", 100), targetLen: 40},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := truncateDescription(tt.desc, tt.targetLen)
+			if tt.targetLen >= len(tt.desc) {
+				if got != tt.desc {
+					t.Errorf("expected unchanged desc, got %q", got)
+				}
+				return
+			}
+			if tt.targetLen <= len(truncationNotice) {
+				if got != truncationNotice {
+					t.Errorf("expected bare notice, got %q", got)
+				}
+				return
+			}
+			if len(got) > tt.targetLen {
+				t.Errorf("expected result within %d chars, got %d (%q)", tt.targetLen, len(got), got)
+			}
+			if !strings.HasSuffix(got, truncationNotice) {
+				t.Errorf("expected truncation notice suffix, got %q", got)
+			}
+		})
+	}
+}
+
+func TestFitEntriesToBodyLimitJiraTable(t *testing.T) {
+	// Ensure the fit logic works when the ticket column is enabled and there
+	// are many entries contributing to the size.
+	var entries []Entry
+	for i := 0; i < 50; i++ {
+		entries = append(entries, Entry{
+			Number:      i,
+			Date:        "2023-01-01",
+			Author:      "author",
+			Title:       "Title",
+			Description: strings.Repeat("d", 4000),
+			Tickets:     []string{"TEST-1"},
+		})
+	}
+
+	limit := 20000
+	got := FitEntriesToBodyLimit("", entries, true, "org", limit)
+	if len(got) > limit {
+		t.Fatalf("expected body within %d chars, got %d", limit, len(got))
+	}
+	// All rows should still be present.
+	for i := 0; i < 50; i++ {
+		if !strings.Contains(got, "| #"+strconv.Itoa(i)+" |") {
+			t.Errorf("expected PR #%d row to remain", i)
+		}
 	}
 }
 
