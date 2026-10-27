@@ -67,12 +67,41 @@ func (c *Client) GetReleases(repo *Repository) ([]*github.RepositoryRelease, err
 	return releases, nil
 }
 
+// comparePageSize is the most commits GitHub returns in one page of a compare.
+const comparePageSize = 100
+
+// CompareCommits returns every commit between base and head. An unpaginated
+// compare returns at most 250 commits, oldest first, so a release with more
+// commits than that silently lost its newest PRs from the changelog. The
+// go-github v28 CompareCommits takes no page options, so the pages are
+// requested here.
 func (c *Client) CompareCommits(repo *Repository, base, head string) (*github.CommitsComparison, error) {
-	comparison, _, err := c.Repositories.CompareCommits(c.ctx, repo.Owner, repo.Name, base, head)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compare commits %s...%s for %s: %w", base, head, repo, err)
+	var all *github.CommitsComparison
+	for page := 1; page != 0; {
+		u := fmt.Sprintf("repos/%v/%v/compare/%v...%v?per_page=%d&page=%d",
+			repo.Owner, repo.Name, base, head, comparePageSize, page)
+		req, err := c.NewRequest("GET", u, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compare commits %s...%s for %s: %w", base, head, repo, err)
+		}
+		comparison := new(github.CommitsComparison)
+		resp, err := c.Do(c.ctx, req, comparison)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compare commits %s...%s for %s: %w", base, head, repo, err)
+		}
+		if all == nil {
+			all = comparison
+		} else {
+			all.Commits = append(all.Commits, comparison.Commits...)
+		}
+		page = resp.NextPage
 	}
-	return comparison, nil
+	// A short result means a page was lost; a changelog missing PRs is worse
+	// than no changelog.
+	if total := all.GetTotalCommits(); len(all.Commits) < total {
+		return nil, fmt.Errorf("compare %s...%s for %s returned %d of %d commits", base, head, repo, len(all.Commits), total)
+	}
+	return all, nil
 }
 
 func (c *Client) GetPullRequest(repo *Repository, number int) (*github.PullRequest, error) {
