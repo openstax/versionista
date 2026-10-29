@@ -230,7 +230,8 @@ func (m *Manager) AppendToRelease(ctx context.Context, repo *ReleaseRepository, 
 	}
 
 	header := fmt.Sprintf("\n## Appended %s (%s)\n\n", time.Now().Format("2006-01-02"), shortSHA(newSHA))
-	newBody := release.GetBody() + header + BuildEntriesTableString(entries, repo.JiraEnabled, m.jiraOrgId)
+	prefix := release.GetBody() + header
+	newBody := prefix + FitEntriesToBodyLimit(prefix, entries, repo.JiraEnabled, m.jiraOrgId, MaxReleaseBodySize)
 
 	if m.dryRun {
 		m.logger.Info("[DRY RUN] Would append %d entries to release %s for %s and move tag to %s",
@@ -382,9 +383,10 @@ func (m *Manager) CreateReleaseFromEntries(ctx context.Context, repo *ReleaseRep
 	entries []Entry, crossLinks []CrossLink, releaseType Type) error {
 	
 	var builder strings.Builder
-	builder.WriteString(BuildCrossLinksString(crossLinks))
+	prefix := BuildCrossLinksString(crossLinks)
+	builder.WriteString(prefix)
 	if len(entries) > 0 {
-		builder.WriteString(BuildEntriesTableString(entries, repo.JiraEnabled, m.jiraOrgId))
+		builder.WriteString(FitEntriesToBodyLimit(prefix, entries, repo.JiraEnabled, m.jiraOrgId, MaxReleaseBodySize))
 	}
 	releaseNotes := builder.String()
 	return m.CreateRelease(ctx, repo, newVersion, releaseNotes, releaseType)
@@ -536,9 +538,10 @@ func (m *Manager) ProcessReleaseInteractiveWithEntries(ctx context.Context, repo
 	}
 
 	var builder strings.Builder
-	builder.WriteString(BuildCrossLinksString(crossLinks))
+	prefix := BuildCrossLinksString(crossLinks)
+	builder.WriteString(prefix)
 	if len(entries) > 0 {
-		builder.WriteString(BuildEntriesTableString(entries, repo.JiraEnabled, m.jiraOrgId))
+		builder.WriteString(FitEntriesToBodyLimit(prefix, entries, repo.JiraEnabled, m.jiraOrgId, MaxReleaseBodySize))
 	}
 	releaseNotes := builder.String()
 
